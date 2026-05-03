@@ -483,8 +483,8 @@ go-japan-portfolio/
 ### Run everything with Docker Compose
 
 ```bash
-git clone https://github.com/yourname/go-japan-portfolio
-cd go-japan-portfolio
+git clone https://github.com/wjdartmouth/golang-projects
+cd golang-projects
 docker-compose up -d
 ```
 
@@ -567,4 +567,4 @@ MIT License — see [LICENSE](./LICENSE) for details.
 ---
 
 *Built as a portfolio targeting the Japanese software engineering market.*  
-*Published on [Zenn.dev](https://zenn.dev/yourname) · [Qiita](https://qiita.com/yourname) · [GitHub](https://github.com/yourname)*
+*Published on [Zenn.dev](https://zenn.dev/jian_wang) · [Qiita](https://qiita.com/wjdartmouth) · [GitHub](https://github.com/wjdartmouth)*
