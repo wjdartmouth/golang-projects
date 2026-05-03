@@ -1,0 +1,1795 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Go × Japan — Portfolio</title>
+<meta name="description" content="Go language microservices portfolio targeting the Japanese market. 7 production-ready projects spanning e-commerce, attendance, language tools, and more.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;600;700;800&family=Zen+Kaku+Gothic+New:wght@300;400;500;700&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+<style>
+/* ════════════════════════════════════════════════════════
+   DESIGN DIRECTION: Edo-period woodblock print × Bloomberg terminal
+   Deep indigo backgrounds, washi paper textures, vermilion red,
+   gold leaf accents. Typography bridges Japanese mincho with
+   monospace code aesthetics. Feels like a serious craftsman's work.
+   ════════════════════════════════════════════════════════ */
+
+:root {
+  --indigo:    #0d1528;
+  --indigo2:   #111e38;
+  --indigo3:   #172447;
+  --indigo4:   #1e2e58;
+  --red:       #c0392b;
+  --red2:      #e74c3c;
+  --red-glow:  rgba(192,57,43,.18);
+  --gold:      #c9a84c;
+  --gold2:     #e8c56a;
+  --gold-dim:  rgba(201,168,76,.12);
+  --washi:     #f5f0e8;
+  --washi2:    #ede6d4;
+  --ink:       #1a1208;
+  --ink2:      #3d3020;
+  --ink3:      #6b5e48;
+  --teal:      #2a7d6e;
+  --blue:      #2c6fad;
+  --text:      #e8e0d0;
+  --text2:     #a89880;
+  --text3:     #5a5040;
+  --border:    rgba(201,168,76,.18);
+  --border2:   rgba(201,168,76,.32);
+  --mono:      'JetBrains Mono', monospace;
+  --mincho:    'Shippori Mincho', serif;
+  --gothic:    'Zen Kaku Gothic New', sans-serif;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold) var(--indigo);
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--indigo); }
+::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 3px; }
+
+body {
+  font-family: var(--gothic);
+  background: var(--indigo);
+  color: var(--text);
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+/* ── GRAIN OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none; opacity: .7;
+}
+
+/* ── VERTICAL STRIPE PATTERN (subtle shoji-screen) ── */
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0px, transparent 119px,
+    rgba(201,168,76,.025) 119px, rgba(201,168,76,.025) 120px
+  );
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════
+   NAV
+   ═══════════════════════════════════ */
+
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: 60px;
+  background: rgba(13,21,40,.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 clamp(20px, 5vw, 60px);
+  justify-content: space-between;
+}
+
+.nav-logo {
+  display: flex; align-items: center; gap: 12px;
+  text-decoration: none;
+}
+
+.nav-logo-mark {
+  font-family: var(--mincho);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: -.02em;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(201,168,76,.4);
+}
+
+.nav-logo-en {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text2);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.nav-links {
+  display: flex; gap: 28px; list-style: none;
+}
+
+.nav-links a {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  text-decoration: none;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  transition: color .2s;
+  position: relative;
+}
+
+.nav-links a::after {
+  content: '';
+  position: absolute; bottom: -3px; left: 0; right: 0;
+  height: 1px; background: var(--gold);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform .25s;
+}
+
+.nav-links a:hover { color: var(--gold); }
+.nav-links a:hover::after { transform: scaleX(1); }
+
+.nav-cta {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 7px 16px;
+  border: 1px solid var(--gold);
+  border-radius: 2px;
+  color: var(--gold);
+  text-decoration: none;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  transition: all .2s;
+}
+
+.nav-cta:hover {
+  background: var(--gold);
+  color: var(--indigo);
+}
+
+/* ═══════════════════════════════════
+   HERO
+   ═══════════════════════════════════ */
+
+#hero {
+  min-height: 100vh;
+  display: flex; align-items: center;
+  padding: 100px clamp(20px, 5vw, 80px) 60px;
+  position: relative; z-index: 1;
+  overflow: hidden;
+}
+
+/* Large kanji watermark */
+.hero-kanji-bg {
+  position: absolute;
+  right: -40px; top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--mincho);
+  font-size: clamp(280px, 30vw, 420px);
+  font-weight: 800;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(201,168,76,.06);
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  letter-spacing: -.04em;
+}
+
+.hero-content {
+  max-width: 720px;
+  position: relative; z-index: 2;
+}
+
+.hero-eyebrow {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 24px;
+  animation: fadeUp .8s ease both;
+}
+
+.hero-eyebrow-line {
+  width: 36px; height: 1px;
+  background: var(--gold);
+}
+
+.hero-eyebrow-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: .22em;
+  text-transform: uppercase;
+}
+
+.hero-title {
+  font-family: var(--mincho);
+  font-size: clamp(40px, 6vw, 78px);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -.02em;
+  margin-bottom: 16px;
+  animation: fadeUp .8s .1s ease both;
+}
+
+.hero-title .accent { color: var(--gold); }
+.hero-title .red-accent { color: var(--red2); }
+
+.hero-subtitle-ja {
+  font-family: var(--mincho);
+  font-size: clamp(18px, 2.5vw, 28px);
+  font-weight: 400;
+  color: var(--text2);
+  margin-bottom: 8px;
+  animation: fadeUp .8s .18s ease both;
+  letter-spacing: .04em;
+}
+
+.hero-desc {
+  font-size: 15px;
+  color: var(--text2);
+  line-height: 1.8;
+  max-width: 520px;
+  margin-bottom: 36px;
+  animation: fadeUp .8s .26s ease both;
+}
+
+.hero-stats {
+  display: flex; gap: 36px;
+  margin-bottom: 40px;
+  animation: fadeUp .8s .34s ease both;
+}
+
+.hero-stat {
+  display: flex; flex-direction: column; gap: 3px;
+}
+
+.hero-stat-num {
+  font-family: var(--mono);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1;
+}
+
+.hero-stat-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.hero-cta-row {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  animation: fadeUp .8s .42s ease both;
+}
+
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 12px 24px;
+  background: var(--red);
+  color: #fff;
+  text-decoration: none;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  transition: all .2s;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+
+.btn-primary:hover {
+  background: var(--red2);
+  transform: translateY(-2px);
+}
+
+.btn-outline {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 11px 24px;
+  border: 1px solid var(--border2);
+  color: var(--text);
+  text-decoration: none;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  transition: all .2s;
+}
+
+.btn-outline:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  transform: translateY(-2px);
+}
+
+/* scroll indicator */
+.scroll-hint {
+  position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 9px; color: var(--text3);
+  letter-spacing: .14em; text-transform: uppercase;
+  animation: fadeIn 1.2s 1s both;
+}
+
+.scroll-hint-line {
+  width: 1px; height: 36px;
+  background: linear-gradient(to bottom, transparent, var(--gold));
+  animation: scrollPulse 2s 1.5s infinite;
+}
+
+@keyframes scrollPulse {
+  0%,100% { opacity: .3; transform: scaleY(1); }
+  50% { opacity: 1; transform: scaleY(.6); }
+}
+
+/* ═══════════════════════════════════
+   SECTION DIVIDER — ink brush stroke
+   ═══════════════════════════════════ */
+
+.section-divider {
+  position: relative;
+  padding: 0 clamp(20px, 5vw, 80px);
+  z-index: 1;
+  overflow: hidden;
+}
+
+.divider-label {
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 56px;
+}
+
+.divider-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--red);
+  letter-spacing: .1em;
+}
+
+.divider-line {
+  flex: 1; height: 1px;
+  background: linear-gradient(to right, var(--border2), transparent);
+}
+
+.divider-title {
+  font-family: var(--mincho);
+  font-size: clamp(28px, 4vw, 48px);
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.divider-title .ja {
+  color: var(--gold);
+  font-size: .65em;
+  display: block;
+  font-weight: 400;
+  letter-spacing: .12em;
+  margin-top: 4px;
+}
+
+/* ═══════════════════════════════════
+   PROJECTS
+   ═══════════════════════════════════ */
+
+#projects {
+  padding: 80px clamp(20px, 5vw, 80px) 100px;
+  position: relative; z-index: 1;
+}
+
+.projects-intro {
+  max-width: 640px;
+  font-size: 14px;
+  color: var(--text2);
+  line-height: 1.8;
+  margin-bottom: 64px;
+}
+
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: 24px;
+}
+
+/* ── PROJECT CARD ── */
+.card {
+  background: var(--indigo2);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  transition: all .3s cubic-bezier(.4,0,.2,1);
+  cursor: default;
+}
+
+.card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--red), transparent);
+  opacity: 0;
+  transition: opacity .3s;
+}
+
+.card::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 30% 0%, rgba(201,168,76,.04) 0%, transparent 60%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .3s;
+}
+
+.card:hover {
+  border-color: var(--border2);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(201,168,76,.08);
+}
+
+.card:hover::before { opacity: 1; }
+.card:hover::after { opacity: 1; }
+
+/* Card number watermark */
+.card-num-bg {
+  position: absolute;
+  right: 14px; top: 14px;
+  font-family: var(--mono);
+  font-size: 56px;
+  font-weight: 700;
+  color: rgba(201,168,76,.045);
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.card-header {
+  padding: 24px 24px 16px;
+  border-bottom: 1px solid rgba(201,168,76,.08);
+  position: relative;
+}
+
+.card-tag-row {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;
+}
+
+.tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 1px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.tag-go      { background: rgba(0,173,216,.12); color: #4fc3d8; border: 1px solid rgba(0,173,216,.2); }
+.tag-api     { background: rgba(201,168,76,.1);  color: var(--gold); border: 1px solid rgba(201,168,76,.2); }
+.tag-stdlib  { background: rgba(42,125,110,.12); color: #4ecdb4; border: 1px solid rgba(42,125,110,.2); }
+.tag-cli     { background: rgba(155,89,182,.12); color: #b49ccc; border: 1px solid rgba(155,89,182,.2); }
+.tag-scraper { background: rgba(192,57,43,.12);  color: #e07060; border: 1px solid rgba(192,57,43,.2); }
+.tag-mw      { background: rgba(44,95,138,.12);  color: #70a0cc; border: 1px solid rgba(44,95,138,.2); }
+
+.card-title-ja {
+  font-family: var(--mincho);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .04em;
+  line-height: 1.3;
+  margin-bottom: 3px;
+}
+
+.card-title-en {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.card-body { padding: 16px 24px; }
+
+.card-desc {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.75;
+  margin-bottom: 18px;
+}
+
+/* Feature bullets */
+.card-features {
+  list-style: none;
+  margin-bottom: 18px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+
+.card-features li {
+  font-size: 12px;
+  color: var(--text2);
+  display: flex; align-items: flex-start; gap: 8px;
+  line-height: 1.5;
+}
+
+.card-features li::before {
+  content: '◈';
+  color: var(--red);
+  font-size: 9px;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+/* Endpoint pills */
+.card-endpoints {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.endpoint {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 3px 8px;
+  background: rgba(0,0,0,.3);
+  border: 1px solid rgba(255,255,255,.05);
+  color: var(--text3);
+  border-radius: 2px;
+}
+
+/* Port badge */
+.card-footer {
+  padding: 12px 24px 18px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-top: 1px solid rgba(201,168,76,.06);
+}
+
+.port-badge {
+  display: flex; align-items: center; gap: 6px;
+}
+
+.port-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 6px var(--teal);
+  animation: portPulse 2.5s infinite;
+}
+
+@keyframes portPulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: .4; }
+}
+
+.port-text {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+}
+
+.card-links {
+  display: flex; gap: 10px;
+}
+
+.card-link {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  text-decoration: none;
+  padding: 4px 10px;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 2px;
+  transition: all .2s;
+  letter-spacing: .06em;
+  display: flex; align-items: center; gap: 5px;
+}
+
+.card-link:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.card-link.primary-link {
+  border-color: rgba(192,57,43,.4);
+  color: var(--red2);
+}
+
+.card-link.primary-link:hover {
+  background: var(--red-glow);
+  border-color: var(--red2);
+}
+
+/* ═══════════════════════════════════
+   SKILLS / STACK SECTION
+   ═══════════════════════════════════ */
+
+#stack {
+  padding: 80px clamp(20px, 5vw, 80px);
+  background: var(--indigo2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  position: relative; z-index: 1;
+}
+
+.stack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 48px;
+}
+
+.stack-item {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.02);
+  position: relative;
+  overflow: hidden;
+  transition: all .2s;
+}
+
+.stack-item:hover {
+  border-color: var(--border2);
+  background: rgba(201,168,76,.04);
+}
+
+.stack-item::after {
+  content: '';
+  position: absolute; right: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, transparent, var(--gold), transparent);
+  opacity: 0;
+  transition: opacity .2s;
+}
+
+.stack-item:hover::after { opacity: .5; }
+
+.stack-icon {
+  font-size: 22px; margin-bottom: 10px;
+}
+
+.stack-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+
+.stack-desc {
+  font-size: 11px;
+  color: var(--text3);
+  line-height: 1.5;
+}
+
+/* ═══════════════════════════════════
+   TERMINAL BLOCK
+   ═══════════════════════════════════ */
+
+#terminal {
+  padding: 80px clamp(20px, 5vw, 80px);
+  position: relative; z-index: 1;
+}
+
+.terminal-window {
+  background: #080c14;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  max-width: 800px;
+  overflow: hidden;
+  box-shadow: 0 40px 80px rgba(0,0,0,.5);
+}
+
+.terminal-bar {
+  background: #0f1520;
+  padding: 10px 16px;
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+
+.term-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+}
+
+.term-dot.r { background: #ff5f57; }
+.term-dot.y { background: #febc2e; }
+.term-dot.g { background: #28c840; }
+
+.term-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: rgba(255,255,255,.3);
+  margin-left: 8px;
+  letter-spacing: .06em;
+}
+
+.terminal-body {
+  padding: 24px 24px 28px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: #a8b8c8;
+}
+
+.t-prompt  { color: var(--gold); }
+.t-cmd     { color: #e8e8d8; }
+.t-output  { color: #7090a8; margin-left: 2px; }
+.t-success { color: var(--teal); }
+.t-error   { color: var(--red2); }
+.t-comment { color: #405060; }
+.t-cursor {
+  display: inline-block; width: 8px; height: 14px;
+  background: var(--gold);
+  vertical-align: middle; margin-left: 2px;
+  animation: blink .9s step-end infinite;
+}
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ═══════════════════════════════════
+   ABOUT / ARCHITECTURE
+   ═══════════════════════════════════ */
+
+#about {
+  padding: 80px clamp(20px, 5vw, 80px);
+  position: relative; z-index: 1;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  margin-top: 48px;
+}
+
+@media (max-width: 760px) {
+  .about-grid { grid-template-columns: 1fr; }
+}
+
+.about-principle {
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--red);
+  background: rgba(255,255,255,.015);
+  transition: all .2s;
+}
+
+.about-principle:hover {
+  border-color: var(--border2);
+  border-left-color: var(--gold);
+  background: rgba(201,168,76,.03);
+}
+
+.ap-num {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--red);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.ap-title {
+  font-family: var(--mincho);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+  letter-spacing: .03em;
+}
+
+.ap-desc {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.75;
+}
+
+/* ═══════════════════════════════════
+   TIMELINE
+   ═══════════════════════════════════ */
+
+#timeline {
+  padding: 80px clamp(20px, 5vw, 80px);
+  background: var(--indigo2);
+  border-top: 1px solid var(--border);
+  position: relative; z-index: 1;
+}
+
+.timeline-track {
+  position: relative;
+  margin-top: 48px;
+  padding-left: 32px;
+}
+
+.timeline-track::before {
+  content: '';
+  position: absolute; left: 7px; top: 8px; bottom: 8px;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--gold), rgba(201,168,76,.1));
+}
+
+.tl-item {
+  position: relative;
+  padding-bottom: 40px;
+  padding-left: 28px;
+}
+
+.tl-item:last-child { padding-bottom: 0; }
+
+.tl-dot {
+  position: absolute;
+  left: -32px; top: 6px;
+  width: 14px; height: 14px;
+  border: 2px solid var(--gold);
+  background: var(--indigo2);
+  border-radius: 50%;
+  transition: all .2s;
+}
+
+.tl-dot::after {
+  content: '';
+  position: absolute; inset: 2px;
+  border-radius: 50%;
+  background: var(--gold);
+  transform: scale(0);
+  transition: transform .2s;
+}
+
+.tl-item:hover .tl-dot::after { transform: scale(1); }
+
+.tl-project {
+  font-family: var(--mincho);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+  letter-spacing: .03em;
+}
+
+.tl-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.tl-desc {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.7;
+  max-width: 480px;
+}
+
+.tl-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+
+/* ═══════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════ */
+
+footer {
+  padding: 60px clamp(20px, 5vw, 80px) 40px;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 40px; flex-wrap: wrap;
+  position: relative; z-index: 1;
+}
+
+.footer-brand { max-width: 320px; }
+
+.footer-brand-title {
+  font-family: var(--mincho);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+
+.footer-brand-desc {
+  font-size: 12px;
+  color: var(--text3);
+  line-height: 1.7;
+}
+
+.footer-links-group {}
+
+.footer-links-title {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.footer-links {
+  list-style: none;
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+.footer-links a {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  text-decoration: none;
+  letter-spacing: .06em;
+  transition: color .2s;
+  display: flex; align-items: center; gap: 6px;
+}
+
+.footer-links a:hover { color: var(--gold); }
+
+.footer-links a::before {
+  content: '→';
+  font-size: 10px;
+  color: var(--red);
+}
+
+.footer-bottom {
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255,255,255,.04);
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 12px;
+  width: 100%;
+}
+
+.footer-copy {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: .08em;
+}
+
+.footer-made-with {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: .06em;
+  display: flex; align-items: center; gap: 6px;
+}
+
+.footer-made-with .go { color: #00aed8; }
+.footer-made-with .heart { color: var(--red); }
+
+/* ═══════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════ */
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity .6s ease, transform .6s ease;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* staggered children */
+.stagger > * { transition-delay: calc(var(--i, 0) * 80ms); }
+
+/* ═══════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════ */
+
+@media (max-width: 640px) {
+  .nav-links { display: none; }
+  .hero-stats { gap: 20px; }
+  .hero-stat-num { font-size: 24px; }
+  .hero-kanji-bg { font-size: 180px; opacity: .5; }
+  .about-grid { grid-template-columns: 1fr; gap: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════ NAV ══ -->
+<nav>
+  <a href="#hero" class="nav-logo">
+    <div class="nav-logo-mark">碁</div>
+    <div>
+      <div class="nav-logo-en">Go × Japan</div>
+    </div>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#projects">Projects</a></li>
+    <li><a href="#stack">Stack</a></li>
+    <li><a href="#terminal">CLI</a></li>
+    <li><a href="#about">Design</a></li>
+  </ul>
+  <a href="https://github.com/wjdartmouth/golang-projects" class="nav-cta" target="_blank" rel="noopener">GitHub →</a>
+</nav>
+
+<!-- ══════════════════════════════════════ HERO ══ -->
+<section id="hero">
+  <div class="hero-kanji-bg" aria-hidden="true">日本<br>語</div>
+
+  <div class="hero-content">
+    <div class="hero-eyebrow">
+      <div class="hero-eyebrow-line"></div>
+      <div class="hero-eyebrow-text">Go Language · Japanese Market</div>
+    </div>
+
+    <h1 class="hero-title">
+      Go<span class="accent"> × </span>日本<br>
+      <span class="red-accent">7</span> Microservices
+    </h1>
+
+    <p class="hero-subtitle-ja">日本市場向け Goポートフォリオ</p>
+
+    <p class="hero-desc">
+      A curated collection of production-grade Go microservices built for Japan — spanning 
+      e-commerce price tracking, labor law compliance, postal infrastructure, 
+      language tooling, and more. Zero external dependencies where possible. 
+      Bilingual documentation throughout.
+    </p>
+
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="hero-stat-num">7</div>
+        <div class="hero-stat-label">Projects</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">~10k</div>
+        <div class="hero-stat-label">Lines of Go</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">5+</div>
+        <div class="hero-stat-label">Japanese APIs</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">0</div>
+        <div class="hero-stat-label">CGO deps</div>
+      </div>
+    </div>
+
+    <div class="hero-cta-row">
+      <a href="#projects" class="btn-primary">
+        <span>View Projects</span>
+        <span>↓</span>
+      </a>
+      <a href="https://github.com/wjdartmouth/golang-projects" class="btn-outline" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="scroll-hint" aria-hidden="true">
+    <span>Scroll</span>
+    <div class="scroll-hint-line"></div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ PROJECTS ══ -->
+<section id="projects">
+  <div style="padding: 80px clamp(20px,5vw,80px) 0; position:relative; z-index:1;">
+    <div class="divider-label">
+      <span class="divider-num">01</span>
+      <div class="divider-line"></div>
+    </div>
+    <h2 class="divider-title reveal">
+      Projects
+      <span class="ja">プロジェクト一覧</span>
+    </h2>
+    <p class="projects-intro reveal">
+      Each project targets a real pain point in the Japanese technology landscape — 
+      from navigating 労基法 labor regulations to parsing Shift-JIS encoded legacy data. 
+      All services expose REST APIs, include bilingual README files, 
+      and are containerized with minimal Docker images.
+    </p>
+  </div>
+
+  <div style="padding: 0 clamp(20px,5vw,80px) 100px; position:relative; z-index:1;">
+    <div class="projects-grid stagger" id="projects-grid">
+
+      <!-- ── 1. Holidays API ── -->
+      <article class="card reveal" style="--i:0">
+        <div class="card-num-bg">01</div>
+        <div class="card-header">
+          <div class="card-tag-row">
+            <span class="tag tag-go">Go 1.21</span>
+            <span class="tag tag-api">REST API</span>
+            <span class="tag tag-stdlib">Stdlib Only</span>
+          </div>
+          <div class="card-title-ja">祝日 API</div>
+          <div class="card-title-en">Japanese Holidays Microservice</div>
+        </div>
+        <div class="card-body">
+          <p class="card-desc">
+            Implements all 16+ national holidays per 国民の祝日に関する法律, 
+            including Happy Monday rules, 振替休日 substitution chaining, and 
+            vernal/autumnal equinox approximation formulas — without any external data.
+          </p>
+          <ul class="card-features">
+            <li>Happy Monday calculation (成人の日, 敬老の日, 体育の日, 海の日)</li>
+            <li>Substitute holiday chaining — cascades through consecutive holidays</li>
+            <li>Spring &amp; autumn equinox via orbital mechanics formula</li>
+            <li>Next business day calculator skipping weekends and holidays</li>
+          </ul>
+          <div class="card-endpoints">
+            <span class="endpoint">GET /holidays?year=</span>
+            <span class="endpoint">GET /check?date=</span>
+            <span class="endpoint">GET /next-business-day</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="port-badge">
+            <div class="port-dot"></div>
+            <div class="port-text">:8080</div>
+          </div>
+          <div class="card-links">
+            <a href="https://github.com/wjdartmouth/golang-projects" class="card-link primary-link" target="_blank" rel="noopener">GitHub</a>
+            <a href="#" class="card-link">README</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- ── 2. Invoice Generator ── -->
+      <article class="card reveal" style="--i:1">
+        <div class="card-num-bg">02</div>
+        <div class="card-header">
+          <div class="card-tag-row">
+            <span class="tag tag-go">Go 1.21</span>
+            <span class="tag tag-api">REST API</span>
+            <span class="tag tag-stdlib">Stdlib Only</span>
+          </div>
+          <div class="card-title-ja">請求書 API</div>
+          <div class="card-title-en">Invoice Generator</div>
+        </div>
+        <div class="card-body">
+          <p class="card-desc">
+            Generates Japan-compliant invoices with インボイス制度 (qualified invoice 
+            system, Oct 2023) support. Handles dual-rate consumption tax (10% / 8% 
+            reduced), T-number validation, and HTML + JSON output.
+          </p>
+          <ul class="card-features">
+            <li>インボイス制度 compliant — T-number display &amp; tax breakdown</li>
+            <li>10% standard + 8% reduced tax rates with per-line itemization</li>
+            <li>HTML invoices with Noto Sans JP rendering via CSS</li>
+            <li>JSON output for downstream integration</li>
+          </ul>
+          <div class="card-endpoints">
+            <span class="endpoint">POST /generate</span>
+            <span class="endpoint">GET /preview</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="port-badge">
+            <div class="port-dot"></div>
+            <div class="port-text">:8081</div>
+          </div>
+          <div class="card-links">
+            <a href="https://github.com/wjdartmouth/golang-projects" class="card-link primary-link" target="_blank" rel="noopener">GitHub</a>
+            <a href="#" class="card-link">README</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- ── 3. Postal Code API ── -->
+      <article class="card reveal" style="--i:2">
+        <div class="card-num-bg">03</div>
+        <div class="card-header">
+          <div class="card-tag-row">
+            <span class="tag tag-go">Go 1.21</span>
+            <span class="tag tag-api">REST API</span>
+            <span class="tag tag-stdlib">Stdlib Only</span>
+          </div>
+          <div class="card-title-ja">郵便番号 API</div>
+          <div class="card-title-en">Postal Code Lookup</div>
+        </div>
+        <div class="card-body">
+          <p class="card-desc">
+            O(1) hash map lookup over Japan Post's KEN_ALL.CSV dataset. 
+            Supports hyphen normalization, concurrent reads via sync.RWMutex, 
+            and full-text address search with 15 built-in sample records as fallback.
+          </p>
+          <ul class="card-features">
+            <li>O(1) lookup — hash map over the 120k-entry Japan Post database</li>
+            <li>sync.RWMutex for safe concurrent reads at high throughput</li>
+            <li>Hyphen normalization — 〒123-4567 and 1234567 both work</li>
+            <li>KEN_ALL.CSV hot reload via env POSTAL_CSV</li>
+          </ul>
+          <div class="card-endpoints">
+            <span class="endpoint">GET /lookup?code=</span>
+            <span class="endpoint">GET /search?q=</span>
+            <span class="endpoint">GET /validate</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="port-badge">
+            <div class="port-dot"></div>
+            <div class="port-text">:8082</div>
+          </div>
+          <div class="card-links">
+            <a href="https://github.com/wjdartmouth/golang-projects" class="card-link primary-link" target="_blank" rel="noopener">GitHub</a>
+            <a href="#" class="card-link">README</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- ── 4. JLPT Quiz API ── -->
+      <article class="card reveal" style="--i:3">
+        <div class="card-num-bg">04</div>
+        <div class="card-header">
+          <div class="card-tag-row">
+            <span class="tag tag-go">Go 1.21</span>
+            <span class="tag tag-api">REST API</span>
+            <span class="tag tag-stdlib">Stdlib Only</span>
+          </div>
+          <div class="card-title-ja">JLPT 語彙クイズ</div>
+          <div class="card-title-en">JLPT Vocabulary Quiz API</div>
+        </div>
+        <div class="card-body">
+          <p class="card-desc">
+            Quiz engine for JLPT N5–N1 with 104 vocabulary items across 14 categories. 
+            Session management, streak scoring with multipliers, wrong-word review 
+            queues, and 4 quiz modes including 3D flashcard flip.
+          </p>
+          <ul class="card-features">
+            <li>104 words across N5–N1 with kanji, kana, romaji, examples</li>
+            <li>Streak engine — 3× at 5-in-a-row, 2× at 3-in-a-row</li>
+            <li>4 modes: kanji→meaning, meaning→kanji, kana→kanji, flashcard</li>
+            <li>Grading system: S(95%+) A B C D with wrong-word review queue</li>
+          </ul>
+          <div class="card-endpoints">
+            <span class="endpoint">POST /quiz/start</span>
+            <span class="endpoint">POST /quiz/answer</span>
+            <span class="endpoint">GET /quiz/:id/summary</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="port-badge">
+            <div class="port-dot"></div>
+            <div class="port-text">:8083</div>
+          </div>
+          <div class="card-links">
+            <a href="https://github.com/wjdartmouth/golang-projects" class="card-link primary-link" target="_blank" rel="noopener">GitHub</a>
+            <a href="#" class="card-link">Demo</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- ── 5. Attendance API ── -->
+      <article class="card reveal" style="--i:4">
+        <div class="card-num-bg">05</div>
+        <div class="card-header">
+          <div class="card-tag-row">
+            <span class="tag tag-go">Go 1.21</span>
+            <span class="tag tag-api">REST API</span>
+            <span class="tag tag-stdlib">Stdlib Only</span>
+          </div>
+          <div class="card-title-ja">勤怠管理 API</div>
+          <div class="card-title-en">Attendance Management</div>
+        </div>
+        <div class="card-body">
+          <p class="card-desc">
+            Labor law–compliant attendance system for Japanese workplaces. 
+            Implements 労基法 第32・34・37・39条, 36協定 overtime alerts, 
+            paid leave accrual, and a full approval workflow for leave requests.
+          </p>
+          <ul class="card-features">
+            <li>労基法第37条: 1.25× overtime, 1.35× late-night (22:00–05:00)</li>
+            <li>36協定 alerts at 45h/month threshold</li>
+            <li>有給休暇 accrual per 労基法第39条 tenure table</li>
+            <li>Clock-in/out with break tracking and monthly reporting</li>
+          </ul>
+          <div class="card-endpoints">
+            <span class="endpoint">POST /clock</span>
+            <span class="endpoint">GET /reports/monthly</span>
+            <span class="endpoint">POST /leave/:id/approve</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="port-badge">
+            <div class="port-dot"></div>
+            <div class="port-text">:8084</div>
+          </div>
+          <div class="card-links">
+            <a href="https://github.com/wjdartmouth/golang-projects" class="card-link primary-link" target="_blank" rel="noopener">GitHub</a>
+            <a href="#" class="card-link">Dashboard</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- ── 6. Price Tracker ── -->
+      <article class="card reveal" style="--i:5">
+        <div class="card-num-bg">06</div>
+        <div class="card-header">
+          <div class="card-tag-row">
+            <span class="tag tag-go">Go 1.21</span>
+            <span class="tag tag-scraper">Scraper</span>
+            <span class="tag tag-cli">CLI</span>
+          </div>
+          <div class="card-title-ja">価格追跡</div>
+          <div class="card-title-en">Price Tracker · 楽天 / Yahoo</div>
+        </div>
+        <div class="card-body">
+          <p class="card-desc">
+            Monitors product prices across 楽天市場, Yahoo!ショッピング, Amazon.co.jp, 
+            and メルカリ. Features User-Agent rotation, polite delays, Shift-JIS decoding, 
+            platform-specific parsers, and a Bloomberg-terminal dashboard.
+          </p>
+          <ul class="card-features">
+            <li>4 platform parsers: HTML scraping + Mercari JSON extraction</li>
+            <li>Alert engine: target price, % drop, all-time low, back-in-stock</li>
+            <li>Shift-JIS / EUC-JP auto-detection via golang.org/x/text</li>
+            <li>CLI mode: table, JSON, CSV output with --format flag</li>
+          </ul>
+          <div class="card-endpoints">
+            <span class="endpoint">GET /products/:id/compare</span>
+            <span class="endpoint">POST /products/:id/scrape</span>
+            <span class="endpoint">GET /alerts</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="port-badge">
+            <div class="port-dot"></div>
+            <div class="port-text">:8085</div>
+          </div>
+          <div class="card-links">
+            <a href="https://github.com/wjdartmouth/golang-projects" class="card-link primary-link" target="_blank" rel="noopener">GitHub</a>
+            <a href="#" class="card-link">Dashboard</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- ── 7. Furigana Middleware ── -->
+      <article class="card reveal" style="--i:6">
+        <div class="card-num-bg">07</div>
+        <div class="card-header">
+          <div class="card-tag-row">
+            <span class="tag tag-go">Go 1.21</span>
+            <span class="tag tag-mw">Middleware</span>
+            <span class="tag tag-cli">CLI</span>
+          </div>
+          <div class="card-title-ja">振仮名 Middleware</div>
+          <div class="card-title-en">Furigana Injection</div>
+        </div>
+        <div class="card-body">
+          <p class="card-desc">
+            HTTP middleware that automatically wraps kanji in HTML responses 
+            with &lt;ruby&gt; annotations. Built-in 3,000-word dictionary with greedy 
+            longest-match scan. Pluggable Annotator interface for MeCab or Kuromoji.
+          </p>
+          <ul class="card-features">
+            <li>Pluggable Annotator interface — swap in MeCab/Kuromoji without changing middleware</li>
+            <li>Hiragana, katakana, and Hepburn romaji output modes</li>
+            <li>JLPT level filtering (N5 only, N4+, all, advanced N1/N2)</li>
+            <li>Idempotent — existing &lt;ruby&gt; tags never double-annotated</li>
+          </ul>
+          <div class="card-endpoints">
+            <span class="endpoint">mw.Wrap(handler)</span>
+            <span class="endpoint">POST /api/v1/annotate</span>
+            <span class="endpoint">GET /api/v1/lookup</span>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="port-badge">
+            <div class="port-dot"></div>
+            <div class="port-text">:8086</div>
+          </div>
+          <div class="card-links">
+            <a href="https://github.com/wjdartmouth/golang-projects" class="card-link primary-link" target="_blank" rel="noopener">GitHub</a>
+            <a href="#" class="card-link">Demo</a>
+          </div>
+        </div>
+      </article>
+
+    </div><!-- /grid -->
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════ STACK ══ -->
+<section id="stack">
+  <div style="padding: 0 clamp(20px,5vw,80px);">
+    <div class="divider-label">
+      <span class="divider-num">02</span>
+      <div class="divider-line"></div>
+    </div>
+    <h2 class="divider-title reveal">
+      Tech Stack
+      <span class="ja">技術スタック</span>
+    </h2>
+  </div>
+
+  <div style="padding: 0 clamp(20px,5vw,80px);">
+    <div class="stack-grid stagger reveal">
+
+      <div class="stack-item" style="--i:0">
+        <div class="stack-icon">🐹</div>
+        <div class="stack-name">Go 1.21</div>
+        <div class="stack-desc">Primary language. Standard library first — external packages only when truly justified.</div>
+      </div>
+
+      <div class="stack-item" style="--i:1">
+        <div class="stack-icon">🌐</div>
+        <div class="stack-name">golang.org/x/net</div>
+        <div class="stack-desc">HTML parsing for furigana middleware and price scraper DOM walking.</div>
+      </div>
+
+      <div class="stack-item" style="--i:2">
+        <div class="stack-icon">🈶</div>
+        <div class="stack-name">golang.org/x/text</div>
+        <div class="stack-desc">Shift-JIS and EUC-JP decoding for legacy Japanese e-commerce sites.</div>
+      </div>
+
+      <div class="stack-item" style="--i:3">
+        <div class="stack-icon">🔒</div>
+        <div class="stack-name">sync.RWMutex</div>
+        <div class="stack-desc">Concurrent-safe in-memory stores across all services. Zero database dependency.</div>
+      </div>
+
+      <div class="stack-item" style="--i:4">
+        <div class="stack-icon">🐳</div>
+        <div class="stack-name">Docker</div>
+        <div class="stack-desc">Multi-stage builds targeting scratch or alpine. Final images 5–15 MB.</div>
+      </div>
+
+      <div class="stack-item" style="--i:5">
+        <div class="stack-icon">📡</div>
+        <div class="stack-name">REST / JSON</div>
+        <div class="stack-desc">net/http mux, encoding/json, CORS headers. No framework overhead.</div>
+      </div>
+
+      <div class="stack-item" style="--i:6">
+        <div class="stack-icon">📊</div>
+        <div class="stack-name">Japanese APIs</div>
+        <div class="stack-desc">Japan Post KEN_ALL.CSV, 国民の祝日 law, インボイス制度, 労基法 compliance rules.</div>
+      </div>
+
+      <div class="stack-item" style="--i:7">
+        <div class="stack-icon">📝</div>
+        <div class="stack-name">Bilingual Docs</div>
+        <div class="stack-desc">README files in Japanese + English. Zenn/Qiita-ready markdown formatting.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ TERMINAL ══ -->
+<section id="terminal">
+  <div style="padding: 0 clamp(20px,5vw,80px);">
+    <div class="divider-label">
+      <span class="divider-num">03</span>
+      <div class="divider-line"></div>
+    </div>
+    <h2 class="divider-title reveal">
+      Quick Start
+      <span class="ja">クイックスタート</span>
+    </h2>
+  </div>
+
+  <div style="padding: 0 clamp(20px,5vw,80px);">
+    <div class="terminal-window reveal">
+      <div class="terminal-bar">
+        <div class="term-dot r"></div>
+        <div class="term-dot y"></div>
+        <div class="term-dot g"></div>
+        <span class="term-title">bash — go-japan-portfolio</span>
+      </div>
+      <div class="terminal-body">
+        <div><span class="t-comment"># Clone the repository</span></div>
+        <div><span class="t-prompt">$ </span><span class="t-cmd">git clone https://github.com/wjdartmouth/golang-projects</span></div>
+        <div><span class="t-prompt">$ </span><span class="t-cmd">cd golang-projects</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-comment"># Run all services via Docker Compose</span></div>
+        <div><span class="t-prompt">$ </span><span class="t-cmd">docker-compose up -d</span></div>
+        <div><span class="t-output">✓  holidays-api    started  :8080</span></div>
+        <div><span class="t-output">✓  invoice-gen     started  :8081</span></div>
+        <div><span class="t-output">✓  postal-api      started  :8082</span></div>
+        <div><span class="t-output">✓  jlpt-quiz-api   started  :8083</span></div>
+        <div><span class="t-output">✓  kintai-api      started  :8084</span></div>
+        <div><span class="t-output">✓  price-tracker   started  :8085</span></div>
+        <div><span class="t-output">✓  furigana        started  :8086</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-comment"># Check holidays for 2025</span></div>
+        <div><span class="t-prompt">$ </span><span class="t-cmd">curl http://localhost:8080/api/v1/holidays?year=2025</span></div>
+        <div><span class="t-output">{"year":2025,"holidays":[{"name":"元日","date":"2025-01-01"}…]}</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-comment"># Scrape a price from Rakuten</span></div>
+        <div><span class="t-prompt">$ </span><span class="t-cmd">go run ./price-tracker scrape -platform rakuten \</span></div>
+        <div><span class="t-prompt">  </span><span class="t-cmd">-format table https://item.rakuten.co.jp/…</span></div>
+        <div><span class="t-output">Platform   Price(税込)  Tax-ex    Available</span></div>
+        <div><span class="t-output">rakuten    ¥36,800     ¥33,454   あり</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-comment"># Inject furigana from stdin</span></div>
+        <div><span class="t-prompt">$ </span><span class="t-cmd">echo "&lt;p&gt;東京都は日本の首都です&lt;/p&gt;" | \</span></div>
+        <div><span class="t-prompt">  </span><span class="t-cmd">go run ./furigana annotate -mode hiragana</span></div>
+        <div><span class="t-output">注釈: 3件 注入 / 0件 スキップ</span></div>
+        <div><span class="t-success">&lt;p&gt;&lt;ruby&gt;&lt;rb&gt;東京都&lt;/rb&gt;&lt;rt&gt;とうきょうと&lt;/rt&gt;&lt;/ruby&gt;…&lt;/p&gt;</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-comment"># Lookup postal code</span></div>
+        <div><span class="t-prompt">$ </span><span class="t-cmd">curl "http://localhost:8082/api/v1/postal/lookup?code=100-0001"</span></div>
+        <div><span class="t-output">{"postal_code":"1000001","prefecture":"東京都","city":"千代田区"…}</span></div>
+        <div>&nbsp;</div>
+        <div><span class="t-prompt">$ </span><span class="t-cursor"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════ ABOUT ══ -->
+<section id="about">
+  <div style="padding: 0 clamp(20px,5vw,80px);">
+    <div class="divider-label">
+      <span class="divider-num">04</span>
+      <div class="divider-line"></div>
+    </div>
+    <h2 class="divider-title reveal">
+      Design Principles
+      <span class="ja">設計思想</span>
+    </h2>
+  </div>
+
+  <div style="padding: 0 clamp(20px,5vw,80px);">
+    <div class="about-grid stagger">
+      <div class="about-principle reveal" style="--i:0">
+        <div class="ap-num">01 · 依存関係</div>
+        <div class="ap-title">Zero Dependency First</div>
+        <p class="ap-desc">Every project defaults to the Go standard library. External packages are added only when they solve a genuine problem — HTML parsing (x/net) and charset conversion (x/text) earned their place. No ORM, no web framework, no reflection magic.</p>
+      </div>
+
+      <div class="about-principle reveal" style="--i:1">
+        <div class="ap-num">02 · 並行性</div>
+        <div class="ap-title">Concurrency Safety</div>
+        <p class="ap-desc">All in-memory stores use sync.RWMutex with read/write lock discipline. No global state without protection. The postal code API can handle thousands of concurrent lookups without a single race condition.</p>
+      </div>
+
+      <div class="about-principle reveal" style="--i:2">
+        <div class="ap-num">03 · 法令準拠</div>
+        <div class="ap-title">Japanese Law Compliance</div>
+        <p class="ap-desc">The attendance API implements 労働基準法 articles 32, 34, 37, and 39 precisely. The invoice generator supports the 2023 インボイス制度 qualified invoice reform. The holiday API follows 国民の祝日に関する法律 exactly — not a holiday database.</p>
+      </div>
+
+      <div class="about-principle reveal" style="--i:3">
+        <div class="ap-num">04 · 文字コード</div>
+        <div class="ap-title">Japanese Encoding Support</div>
+        <p class="ap-desc">Legacy Japanese systems routinely output Shift-JIS and EUC-JP. The price tracker detects charset from Content-Type headers and auto-decodes before HTML parsing — a real-world problem that most Go scraper tutorials ignore.</p>
+      </div>
+
+      <div class="about-principle reveal" style="--i:4">
+        <div class="ap-num">05 · インターフェース</div>
+        <div class="ap-title">Interface-Driven Design</div>
+        <p class="ap-desc">The furigana middleware's Annotator interface lets any team swap in MeCab, Kuromoji, or a cloud NLP API without touching the HTTP layer. The price tracker's Scraper can be extended for new platforms by adding a single method.</p>
+      </div>
+
+      <div class="about-principle reveal" style="--i:5">
+        <div class="ap-num">06 · ドキュメント</div>
+        <div class="ap-title">Bilingual Documentation</div>
+        <p class="ap-desc">Every README is written in both Japanese and English, formatted for Zenn/Qiita publishing. API documentation includes curl examples, JSON response samples, and Japanese-language field descriptions for team onboarding.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ TIMELINE ══ -->
+<section id="timeline">
+  <div style="padding: 0 clamp(20px,5vw,80px);">
+    <div class="divider-label">
+      <span class="divider-num">05</span>
+      <div class="divider-line"></div>
+    </div>
+    <h2 class="divider-title reveal">
+      Build Log
+      <span class="ja">開発ログ</span>
+    </h2>
+  </div>
+
+  <div style="padding: 0 clamp(20px,5vw,80px);">
+    <div class="timeline-track reveal">
+
+      <div class="tl-item">
+        <div class="tl-dot"></div>
+        <div class="tl-project">祝日 API &amp; 請求書 API &amp; 郵便番号 API</div>
+        <div class="tl-meta">Phase 01 · Foundation Trio</div>
+        <p class="tl-desc">Three core business utilities — a holiday library implementing the actual Japanese law, a tax-compliant invoice generator for the 2023 invoice reform, and a high-performance postal code lookup service backed by the 124k-entry Japan Post dataset.</p>
+        <div class="tl-tags">
+          <span class="tag tag-stdlib">Stdlib</span>
+          <span class="tag tag-api">3 APIs</span>
+        </div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-dot"></div>
+        <div class="tl-project">JLPT 語彙クイズ API</div>
+        <div class="tl-meta">Phase 02 · Language Learning</div>
+        <p class="tl-desc">Quiz engine with session management, streak scoring, and 4 quiz modes targeting JLPT levels N5–N1. Standalone HTML demo works without the backend server.</p>
+        <div class="tl-tags">
+          <span class="tag tag-stdlib">Stdlib</span>
+          <span class="tag tag-api">Session Engine</span>
+        </div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-dot"></div>
+        <div class="tl-project">勤怠管理 API</div>
+        <div class="tl-meta">Phase 03 · Enterprise HR</div>
+        <p class="tl-desc">Full attendance management with 労基法 compliance, overtime calculation at statutory rates, leave approval workflows, and a 7-page interactive management dashboard in IBM Plex Sans JP.</p>
+        <div class="tl-tags">
+          <span class="tag tag-stdlib">Stdlib</span>
+          <span class="tag tag-api">労基法準拠</span>
+        </div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-dot"></div>
+        <div class="tl-project">価格追跡サービス</div>
+        <div class="tl-meta">Phase 04 · E-Commerce Intelligence</div>
+        <p class="tl-desc">Multi-platform price scraper with polite crawling, platform-specific HTML parsers, a Mercari Next.js JSON extractor, and a Bloomberg terminal–inspired dashboard. First project to use external dependencies.</p>
+        <div class="tl-tags">
+          <span class="tag tag-scraper">Scraper</span>
+          <span class="tag tag-cli">CLI</span>
+        </div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-dot"></div>
+        <div class="tl-project">振仮名注入ミドルウェア</div>
+        <div class="tl-meta">Phase 05 · Language Tooling</div>
+        <p class="tl-desc">HTTP middleware with a greedy 8→1 longest-match kanji scanner over a 3,000-word built-in dictionary. Pluggable Annotator interface for MeCab/Kuromoji. Supports hiragana, katakana, and Hepburn romaji output modes.</p>
+        <div class="tl-tags">
+          <span class="tag tag-mw">Middleware</span>
+          <span class="tag tag-api">Ruby HTML</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════ FOOTER ══ -->
+<footer>
+  <div class="footer-brand">
+    <div class="footer-brand-title">Go × 日本</div>
+    <p class="footer-brand-desc">
+      A portfolio of Go microservices targeting the Japanese technology market — 
+      built with precision, documented bilingually, and deployed in minutes.
+    </p>
+  </div>
+
+  <div class="footer-links-group">
+    <div class="footer-links-title">Projects</div>
+    <ul class="footer-links">
+      <li><a href="https://github.com/wjdartmouth/golang-projects">祝日 API</a></li>
+      <li><a href="https://github.com/wjdartmouth/golang-projects">請求書 API</a></li>
+      <li><a href="https://github.com/wjdartmouth/golang-projects">郵便番号 API</a></li>
+      <li><a href="https://github.com/wjdartmouth/golang-projects">JLPT クイズ</a></li>
+      <li><a href="https://github.com/wjdartmouth/golang-projects">勤怠管理 API</a></li>
+      <li><a href="https://github.com/wjdartmouth/golang-projects">価格追跡</a></li>
+      <li><a href="https://github.com/wjdartmouth/golang-projects">振仮名 MW</a></li>
+    </ul>
+  </div>
+
+  <div class="footer-links-group">
+    <div class="footer-links-title">Platforms</div>
+    <ul class="footer-links">
+      <li><a href="https://github.com/wjdartmouth/golang-projects" target="_blank" rel="noopener">GitHub</a></li>
+      <li><a href="https://https://zenn.dev/jian_wang" target="_blank" rel="noopener">Zenn.dev</a></li>
+      <li><a href="https://qiita.com/wjdartmouth" target="_blank" rel="noopener">Qiita</a></li>
+    </ul>
+  </div>
+
+  <div class="footer-bottom">
+    <div class="footer-copy">© 2025 — Go × Japan Portfolio. MIT License.</div>
+    <div class="footer-made-with">
+      Built with <span class="go">Go</span> <span class="heart">♥</span> for the Japanese dev community
+    </div>
+  </div>
+</footer>
+
+<!-- ══════════════════════════════════ SCRIPTS ══ -->
+<script>
+// Intersection Observer for reveal animations
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// Stagger children inside .stagger containers
+document.querySelectorAll('.stagger').forEach(container => {
+  Array.from(container.children).forEach((child, i) => {
+    child.style.setProperty('--i', i);
+    child.style.transitionDelay = `${i * 70}ms`;
+  });
+});
+
+// Typing effect for terminal (simulates live output)
+(function() {
+  const terminal = document.querySelector('.terminal-body');
+  if (!terminal) return;
+
+  // Active port indicator — cycle through colors subtly
+  const dots = document.querySelectorAll('.port-dot');
+  dots.forEach((dot, i) => {
+    dot.style.animationDelay = `${i * 0.4}s`;
+  });
+})();
+
+// Smooth nav highlight on scroll
+(function() {
+  const sections = ['hero', 'projects', 'stack', 'terminal', 'about', 'timeline'];
+  const navLinks = document.querySelectorAll('.nav-links a');
+
+  const sectionObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navLinks.forEach(link => {
+          link.style.color = link.getAttribute('href') === `#${id}` ? 'var(--gold)' : '';
+        });
+      }
+    });
+  }, { threshold: 0.4 });
+
+  sections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) sectionObserver.observe(el);
+  });
+})();
+
+// Counter animation for hero stats
+(function() {
+  const stats = [
+    { el: document.querySelector('.hero-stat:nth-child(1) .hero-stat-num'), target: 7, suffix: '' },
+    { el: document.querySelector('.hero-stat:nth-child(4) .hero-stat-num'), target: 0, suffix: '' },
+  ];
+
+  const countObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        stats.forEach(stat => {
+          if (!stat.el) return;
+          const start = 0;
+          const duration = 1200;
+          const startTime = performance.now();
+          const update = (time) => {
+            const progress = Math.min((time - startTime) / duration, 1);
+            const ease = 1 - Math.pow(1 - progress, 3);
+            stat.el.textContent = Math.round(start + (stat.target - start) * ease) + stat.suffix;
+            if (progress < 1) requestAnimationFrame(update);
+          };
+          requestAnimationFrame(update);
+        });
+        countObserver.disconnect();
+      }
+    });
+  }, { threshold: 0.5 });
+
+  const heroSection = document.getElementById('hero');
+  if (heroSection) countObserver.observe(heroSection);
+})();
+</script>
+</body>
+</html>
