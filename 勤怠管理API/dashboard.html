@@ -1,0 +1,1870 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>勤怠管理システム — Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --navy: #0d1b2a;
+  --navy2: #112236;
+  --navy3: #1a2f45;
+  --amber: #f2a11a;
+  --amber-dim: rgba(242,161,26,0.12);
+  --amber-mid: rgba(242,161,26,0.25);
+  --green: #2dd4a0;
+  --green-dim: rgba(45,212,160,0.1);
+  --red: #ff5a5a;
+  --red-dim: rgba(255,90,90,0.1);
+  --blue: #4ea8de;
+  --blue-dim: rgba(78,168,222,0.1);
+  --text: #e8eef4;
+  --text-dim: #7a92a8;
+  --text-faint: #3d5468;
+  --border: rgba(255,255,255,0.06);
+  --border-hi: rgba(255,255,255,0.12);
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans JP', sans-serif;
+  --radius: 4px;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--sans);
+  background: var(--navy);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ── SIDEBAR ── */
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  background: var(--navy2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar-logo {
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amber);
+  font-family: var(--mono);
+}
+
+.logo-sub {
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 0.08em;
+  margin-top: 2px;
+  font-family: var(--mono);
+}
+
+.nav-section {
+  padding: 14px 0 4px;
+}
+
+.nav-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 0 18px 8px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 18px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+  font-weight: 500;
+}
+
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+
+.nav-item.active {
+  color: var(--amber);
+  background: var(--amber-dim);
+  border-left-color: var(--amber);
+}
+
+.nav-icon { font-size: 14px; width: 18px; text-align: center; }
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 16px 18px;
+  border-top: 1px solid var(--border);
+}
+
+.current-time {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.05em;
+  display: block;
+}
+
+.current-date {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* ── MAIN ── */
+.main {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── TOPBAR ── */
+.topbar {
+  background: var(--navy2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 28px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.page-breadcrumb {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 0.1em;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.month-btn {
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.1s;
+}
+.month-btn:hover { border-color: var(--border-hi); color: var(--text); }
+
+.month-label { min-width: 72px; text-align: center; color: var(--text); font-weight: 600; }
+
+/* ── CONTENT PAGES ── */
+.page { display: none; flex: 1; padding: 28px; }
+.page.active { display: block; }
+
+/* ── KPI CARDS ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: var(--navy2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+
+.kpi-card.amber::before { background: var(--amber); }
+.kpi-card.green::before { background: var(--green); }
+.kpi-card.red::before { background: var(--red); }
+.kpi-card.blue::before { background: var(--blue); }
+
+.kpi-card:hover { border-color: var(--border-hi); }
+
+.kpi-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 10px;
+}
+
+.kpi-value {
+  font-family: var(--mono);
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.kpi-value.amber { color: var(--amber); }
+.kpi-value.red { color: var(--red); }
+.kpi-value.green { color: var(--green); }
+
+.kpi-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.kpi-badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  margin-left: 4px;
+  font-weight: 600;
+}
+
+.badge-up { background: var(--red-dim); color: var(--red); }
+.badge-ok { background: var(--green-dim); color: var(--green); }
+.badge-warn { background: var(--amber-dim); color: var(--amber); }
+
+/* ── SECTION HEADER ── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-title::before {
+  content: '';
+  display: block;
+  width: 3px; height: 14px;
+  background: var(--amber);
+  border-radius: 2px;
+}
+
+.section-action {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  transition: all 0.12s;
+}
+.section-action:hover { border-color: var(--amber); color: var(--amber); }
+
+/* ── TWO-COLUMN LAYOUT ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+.full { margin-bottom: 24px; }
+
+/* ── TABLE ── */
+.table-wrap {
+  background: var(--navy2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead th {
+  background: var(--navy3);
+  padding: 10px 14px;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+tbody td {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--text);
+  vertical-align: middle;
+}
+
+tbody td.dim { color: var(--text-dim); }
+tbody td.mono { font-family: var(--mono); }
+
+/* ── STATUS CHIPS ── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 2px;
+  letter-spacing: 0.04em;
+}
+
+.chip-present { background: var(--green-dim); color: var(--green); }
+.chip-absent { background: var(--red-dim); color: var(--red); }
+.chip-leave { background: var(--blue-dim); color: var(--blue); }
+.chip-pending { background: var(--amber-dim); color: var(--amber); }
+.chip-approved { background: var(--green-dim); color: var(--green); }
+.chip-rejected { background: var(--red-dim); color: var(--red); }
+.chip-remote { background: rgba(155,120,255,0.12); color: #b09eff; }
+.chip-ot { background: var(--red-dim); color: var(--red); }
+
+/* ── MINI BAR CHART ── */
+.bar-chart {
+  background: var(--navy2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+
+.chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 100px;
+  margin-top: 14px;
+}
+
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.bar-fill {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.5s cubic-bezier(0.4,0,0.2,1);
+  min-height: 2px;
+}
+
+.bar-fill.work { background: var(--blue); }
+.bar-fill.ot { background: var(--red); opacity: 0.85; }
+
+.bar-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+/* ── DONUT CHART ── */
+.donut-wrap {
+  background: var(--navy2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+
+.donut-inner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 14px;
+}
+
+.donut-svg { flex-shrink: 0; }
+
+.donut-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.legend-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-val {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+/* ── ALERT CARD ── */
+.alert-list {
+  background: var(--navy2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.alert-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text);
+  transition: background 0.1s;
+}
+
+.alert-item:last-child { border-bottom: none; }
+.alert-item:hover { background: rgba(255,255,255,0.02); }
+
+.alert-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+.alert-body { flex: 1; }
+.alert-emp { font-weight: 600; font-size: 11px; margin-bottom: 2px; }
+.alert-msg { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+.alert-time { font-family: var(--mono); font-size: 10px; color: var(--text-faint); flex-shrink: 0; }
+
+/* ── OVERTIME BAR ── */
+.ot-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 0 0;
+}
+
+.ot-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ot-name {
+  font-size: 11px;
+  font-weight: 500;
+  min-width: 70px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ot-bar-track {
+  flex: 1;
+  height: 6px;
+  background: var(--navy3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.ot-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.7s cubic-bezier(0.4,0,0.2,1);
+}
+
+.ot-hours {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  min-width: 42px;
+  text-align: right;
+}
+
+/* ── CLOCK PANEL ── */
+.clock-panel {
+  background: var(--navy2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.clock-employee-select {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.emp-chip {
+  padding: 5px 12px;
+  background: var(--navy3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.12s;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.emp-chip:hover { border-color: var(--border-hi); color: var(--text); }
+.emp-chip.selected { background: var(--amber-dim); border-color: var(--amber); color: var(--amber); }
+
+.clock-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.clock-btn {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.clock-btn .btn-icon { font-size: 20px; }
+.clock-btn .btn-label { font-size: 11px; }
+.clock-btn .btn-sub { font-size: 9px; font-family: var(--mono); color: var(--text-faint); font-weight: 400; }
+
+.clock-btn.clock-in { border-color: var(--green); color: var(--green); }
+.clock-btn.clock-in:hover { background: var(--green-dim); }
+.clock-btn.clock-out { border-color: var(--red); color: var(--red); }
+.clock-btn.clock-out:hover { background: var(--red-dim); }
+.clock-btn.break-start { border-color: var(--amber); color: var(--amber); }
+.clock-btn.break-start:hover { background: var(--amber-dim); }
+.clock-btn.break-end { border-color: var(--blue); color: var(--blue); }
+.clock-btn.break-end:hover { background: var(--blue-dim); }
+
+.clock-log {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.log-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  animation: fadeIn 0.3s ease;
+}
+
+.log-entry:last-child { border-bottom: none; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+
+.log-time { font-family: var(--mono); color: var(--text-dim); min-width: 48px; }
+.log-type { font-family: var(--mono); font-size: 10px; font-weight: 600; }
+.log-emp { color: var(--text); }
+
+/* ── LEAVE PAGE ── */
+.leave-balance-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.leave-card {
+  background: var(--navy2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.leave-card-name {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leave-card-dept {
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-bottom: 10px;
+}
+
+.leave-ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.leave-big {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.leave-total {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.leave-mini-bar {
+  height: 3px;
+  background: var(--navy3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.leave-mini-fill {
+  height: 100%;
+  background: var(--amber);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+/* ── FORM ELEMENTS ── */
+.form-row {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.form-row.cols-2 { grid-template-columns: 1fr 1fr; }
+.form-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.form-field label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 5px;
+}
+
+.form-field select,
+.form-field input,
+.form-field textarea {
+  width: 100%;
+  background: var(--navy3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 12px;
+  padding: 8px 10px;
+  transition: border-color 0.12s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.form-field select:focus,
+.form-field input:focus,
+.form-field textarea:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+
+.form-field select option { background: var(--navy2); }
+
+.submit-btn {
+  padding: 10px 20px;
+  background: var(--amber);
+  border: none;
+  border-radius: var(--radius);
+  color: var(--navy);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.12s;
+  letter-spacing: 0.04em;
+}
+.submit-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+
+/* ── TOAST ── */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--navy3);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: toastIn 0.25s ease;
+  min-width: 220px;
+  pointer-events: all;
+}
+
+.toast.success { border-left: 3px solid var(--green); }
+.toast.error { border-left: 3px solid var(--red); }
+.toast.info { border-left: 3px solid var(--amber); }
+
+@keyframes toastIn { from{opacity:0;transform:translateX(16px)} to{opacity:1;transform:none} }
+@keyframes toastOut { from{opacity:1} to{opacity:0} }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--text-faint); border-radius: 3px; }
+
+/* ── SEPARATOR ── */
+.hr { height: 1px; background: var(--border); margin: 0 0 24px; }
+
+/* ── EMPTY STATE ── */
+.empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-title">勤怠管理</div>
+      <div class="logo-sub">KINTAI SYSTEM v1.0</div>
+    </div>
+
+    <nav>
+      <div class="nav-section">
+        <div class="nav-label">メイン</div>
+        <div class="nav-item active" onclick="showPage('dashboard')">
+          <span class="nav-icon">◈</span> ダッシュボード
+        </div>
+        <div class="nav-item" onclick="showPage('clock')">
+          <span class="nav-icon">◷</span> 打刻
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">勤怠管理</div>
+        <div class="nav-item" onclick="showPage('attendance')">
+          <span class="nav-icon">▦</span> 月次勤怠
+        </div>
+        <div class="nav-item" onclick="showPage('overtime')">
+          <span class="nav-icon">⚡</span> 残業管理
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">休暇管理</div>
+        <div class="nav-item" onclick="showPage('leave')">
+          <span class="nav-icon">✦</span> 有給休暇
+        </div>
+        <div class="nav-item" onclick="showPage('leavereq')">
+          <span class="nav-icon">✉</span> 休暇申請
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">レポート</div>
+        <div class="nav-item" onclick="showPage('report')">
+          <span class="nav-icon">◎</span> 月次レポート
+        </div>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <span class="current-time" id="clock-display">--:--:--</span>
+      <div class="current-date" id="date-display">----年--月--日</div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <span class="page-breadcrumb">勤怠管理システム /</span>
+        <span class="page-title" id="page-title-text">ダッシュボード</span>
+      </div>
+      <div class="topbar-right">
+        <div class="month-nav">
+          <button class="month-btn" onclick="changeMonth(-1)">‹</button>
+          <span class="month-label" id="month-label">2025年05月</span>
+          <button class="month-btn" onclick="changeMonth(1)">›</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PAGE: DASHBOARD ── -->
+    <div class="page active" id="page-dashboard">
+      <div class="kpi-grid">
+        <div class="kpi-card amber">
+          <div class="kpi-label">本日 出勤者数</div>
+          <div class="kpi-value amber" id="kpi-present">4</div>
+          <div class="kpi-sub">全5名中 <span class="kpi-badge badge-ok">80%</span></div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">月間 総労働時間</div>
+          <div class="kpi-value" id="kpi-work-hours">847h</div>
+          <div class="kpi-sub">前月比 <span class="kpi-badge badge-ok">+2.3%</span></div>
+        </div>
+        <div class="kpi-card red">
+          <div class="kpi-label">月間 残業時間</div>
+          <div class="kpi-value red" id="kpi-ot-hours">62h</div>
+          <div class="kpi-sub">36協定上限 <span class="kpi-badge badge-up">超過リスク</span></div>
+        </div>
+        <div class="kpi-card blue">
+          <div class="kpi-label">有給取得率</div>
+          <div class="kpi-value" id="kpi-leave-rate">47%</div>
+          <div class="kpi-sub">年間目標 70%<span class="kpi-badge badge-warn">要改善</span></div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <!-- Work Hours Bar Chart -->
+        <div class="bar-chart">
+          <div class="section-title">週別 労働時間推移</div>
+          <div class="chart-bars" id="weekly-bars">
+            <!-- JS rendered -->
+          </div>
+          <div style="display:flex;gap:12px;margin-top:8px">
+            <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-dim)">
+              <span style="display:inline-block;width:8px;height:8px;background:var(--blue);border-radius:1px"></span>法定内
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-dim)">
+              <span style="display:inline-block;width:8px;height:8px;background:var(--red);opacity:.85;border-radius:1px"></span>残業
+            </div>
+          </div>
+        </div>
+
+        <!-- Attendance Donut -->
+        <div class="donut-wrap">
+          <div class="section-title">本日 出勤状況</div>
+          <div class="donut-inner">
+            <svg class="donut-svg" width="90" height="90" viewBox="0 0 90 90">
+              <circle cx="45" cy="45" r="35" fill="none" stroke="var(--navy3)" stroke-width="10"/>
+              <circle id="donut-present" cx="45" cy="45" r="35" fill="none" stroke="var(--green)" stroke-width="10"
+                stroke-dasharray="220 220" stroke-dashoffset="55" stroke-linecap="round" transform="rotate(-90 45 45)"
+                style="transition:stroke-dashoffset 0.6s ease"/>
+              <circle id="donut-leave" cx="45" cy="45" r="35" fill="none" stroke="var(--blue)" stroke-width="10"
+                stroke-dasharray="220 220" stroke-dashoffset="192" stroke-linecap="round" transform="rotate(-90 45 45)"
+                style="transition:stroke-dashoffset 0.6s ease"/>
+              <text x="45" y="49" text-anchor="middle" fill="var(--text)" font-family="IBM Plex Mono" font-size="16" font-weight="600">4/5</text>
+            </svg>
+            <div class="donut-legend">
+              <div class="legend-item">
+                <div class="legend-dot" style="background:var(--green)"></div>
+                <span style="color:var(--text-dim)">出勤中</span>
+                <span class="legend-val" style="color:var(--green)" id="leg-present">4名</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background:var(--blue)"></div>
+                <span style="color:var(--text-dim)">有給休暇</span>
+                <span class="legend-val" style="color:var(--blue)" id="leg-leave">0名</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background:var(--red)"></div>
+                <span style="color:var(--text-dim)">欠勤</span>
+                <span class="legend-val" style="color:var(--red)" id="leg-absent">1名</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background:#b09eff"></div>
+                <span style="color:var(--text-dim)">在宅</span>
+                <span class="legend-val" style="color:#b09eff" id="leg-remote">0名</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <!-- OT Ranking -->
+        <div class="bar-chart">
+          <div class="section-title">今月 残業時間ランキング</div>
+          <div class="ot-bar-wrap" id="ot-ranking">
+            <!-- JS rendered -->
+          </div>
+        </div>
+
+        <!-- Alerts -->
+        <div>
+          <div class="section-header">
+            <div class="section-title">労務アラート</div>
+            <span class="kpi-badge badge-up" id="alert-count-badge">3件</span>
+          </div>
+          <div class="alert-list" id="alert-list">
+            <!-- JS rendered -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Today's Attendance Table -->
+      <div class="full">
+        <div class="section-header">
+          <div class="section-title">本日の勤怠状況</div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>従業員</th>
+                <th>部署</th>
+                <th>出勤</th>
+                <th>退勤</th>
+                <th>労働時間</th>
+                <th>残業</th>
+                <th>ステータス</th>
+              </tr>
+            </thead>
+            <tbody id="today-table">
+              <!-- JS rendered -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PAGE: CLOCK ── -->
+    <div class="page" id="page-clock">
+      <div class="two-col">
+        <div>
+          <div class="section-header"><div class="section-title">打刻パネル</div></div>
+          <div class="clock-panel">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-faint);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px">従業員を選択</div>
+            <div class="clock-employee-select" id="clock-emp-select">
+              <!-- JS rendered -->
+            </div>
+            <div class="clock-buttons">
+              <button class="clock-btn clock-in" onclick="doClock('clock_in')">
+                <span class="btn-icon">▶</span>
+                <span class="btn-label">出勤</span>
+                <span class="btn-sub">clock in</span>
+              </button>
+              <button class="clock-btn clock-out" onclick="doClock('clock_out')">
+                <span class="btn-icon">■</span>
+                <span class="btn-label">退勤</span>
+                <span class="btn-sub">clock out</span>
+              </button>
+              <button class="clock-btn break-start" onclick="doClock('break_start')">
+                <span class="btn-icon">⏸</span>
+                <span class="btn-label">休憩開始</span>
+                <span class="btn-sub">break start</span>
+              </button>
+              <button class="clock-btn break-end" onclick="doClock('break_end')">
+                <span class="btn-icon">▷</span>
+                <span class="btn-label">休憩終了</span>
+                <span class="btn-sub">break end</span>
+              </button>
+            </div>
+            <div class="clock-log" id="clock-log">
+              <div style="font-family:var(--mono);font-size:9px;color:var(--text-faint);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:8px">打刻ログ</div>
+              <div class="empty">打刻を行うとここに表示されます</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-header"><div class="section-title">本日の打刻状況</div></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>氏名</th>
+                  <th>出勤</th>
+                  <th>退勤</th>
+                  <th>状態</th>
+                </tr>
+              </thead>
+              <tbody id="clock-status-table">
+                <!-- JS rendered -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PAGE: ATTENDANCE ── -->
+    <div class="page" id="page-attendance">
+      <div style="margin-bottom:16px">
+        <div class="form-row cols-2">
+          <div class="form-field">
+            <label>従業員</label>
+            <select id="att-emp-select" onchange="renderAttendancePage()">
+              <!-- JS rendered -->
+            </select>
+          </div>
+          <div class="form-field">
+            <label>表示月</label>
+            <input type="month" id="att-month-input" onchange="renderAttendancePage()">
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-grid" id="att-kpis">
+        <!-- JS rendered -->
+      </div>
+
+      <div class="full">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>日付</th>
+                <th>曜日</th>
+                <th>出勤</th>
+                <th>退勤</th>
+                <th>休憩</th>
+                <th>実労働</th>
+                <th>残業</th>
+                <th>深夜</th>
+                <th>ステータス</th>
+                <th>備考</th>
+              </tr>
+            </thead>
+            <tbody id="att-table">
+              <!-- JS rendered -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PAGE: OVERTIME ── -->
+    <div class="page" id="page-overtime">
+      <div class="three-col" id="ot-summary-cards">
+        <!-- JS rendered -->
+      </div>
+      <div class="full">
+        <div class="section-header"><div class="section-title">残業時間ランキング（今月）</div></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>従業員</th>
+                <th>部署</th>
+                <th>法定内労働</th>
+                <th>法定外残業</th>
+                <th>深夜残業</th>
+                <th>残業代（概算）</th>
+                <th>36協定</th>
+              </tr>
+            </thead>
+            <tbody id="ot-table">
+              <!-- JS rendered -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PAGE: LEAVE ── -->
+    <div class="page" id="page-leave">
+      <div class="section-header"><div class="section-title">有給休暇残高</div></div>
+      <div class="leave-balance-grid" id="leave-balance-cards">
+        <!-- JS rendered -->
+      </div>
+      <div class="section-header"><div class="section-title">有給申請一覧</div></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>申請者</th>
+              <th>種別</th>
+              <th>開始日</th>
+              <th>終了日</th>
+              <th>日数</th>
+              <th>理由</th>
+              <th>ステータス</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="leave-table">
+            <!-- JS rendered -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── PAGE: LEAVE REQUEST ── -->
+    <div class="page" id="page-leavereq">
+      <div style="max-width:520px">
+        <div class="section-header"><div class="section-title">有給休暇申請</div></div>
+        <div style="background:var(--navy2);border:1px solid var(--border);border-radius:var(--radius);padding:24px">
+          <div class="form-row cols-2">
+            <div class="form-field">
+              <label>従業員</label>
+              <select id="leave-emp">
+                <!-- JS rendered -->
+              </select>
+            </div>
+            <div class="form-field">
+              <label>休暇種別</label>
+              <select id="leave-type">
+                <option value="有給休暇">有給休暇</option>
+                <option value="午前半休">午前半休</option>
+                <option value="午後半休">午後半休</option>
+                <option value="病気休暇">病気休暇</option>
+                <option value="特別休暇">特別休暇</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row cols-2">
+            <div class="form-field">
+              <label>開始日</label>
+              <input type="date" id="leave-start">
+            </div>
+            <div class="form-field">
+              <label>終了日</label>
+              <input type="date" id="leave-end">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>申請理由（任意）</label>
+              <input type="text" id="leave-reason" placeholder="例：私用のため">
+            </div>
+          </div>
+          <button class="submit-btn" onclick="submitLeave()">申請する</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PAGE: REPORT ── -->
+    <div class="page" id="page-report">
+      <div class="kpi-grid" id="report-kpis">
+        <!-- JS rendered -->
+      </div>
+      <div class="full">
+        <div class="section-header"><div class="section-title">月次勤怠サマリー</div></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>従業員</th>
+                <th>部署</th>
+                <th>出勤日数</th>
+                <th>欠勤</th>
+                <th>有給使用</th>
+                <th>総労働</th>
+                <th>残業</th>
+                <th>深夜</th>
+                <th>残業代</th>
+                <th>アラート</th>
+              </tr>
+            </thead>
+            <tbody id="report-table">
+              <!-- JS rendered -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// EMBEDDED DATA (mirrors Go backend seed)
+// ═══════════════════════════════════════════
+
+const EMPLOYEES = [
+  {id:'emp-001',name:'田中 太郎',name_kana:'タナカ タロウ',department:'エンジニアリング部',position:'シニアエンジニア',hire_date:'2020-04-01',hourly_wage:2500,work_pattern:'flex'},
+  {id:'emp-002',name:'鈴木 花子',name_kana:'スズキ ハナコ',department:'営業部',position:'営業マネージャー',hire_date:'2018-07-01',hourly_wage:3000,work_pattern:'standard'},
+  {id:'emp-003',name:'佐藤 健二',name_kana:'サトウ ケンジ',department:'エンジニアリング部',position:'エンジニア',hire_date:'2022-10-01',hourly_wage:2000,work_pattern:'standard'},
+  {id:'emp-004',name:'山田 美咲',name_kana:'ヤマダ ミサキ',department:'人事部',position:'人事担当',hire_date:'2021-04-01',hourly_wage:2200,work_pattern:'standard'},
+  {id:'emp-005',name:'中村 誠',name_kana:'ナカムラ マコト',department:'経理部',position:'経理リーダー',hire_date:'2019-01-15',hourly_wage:2800,work_pattern:'standard'},
+];
+
+const LEAVE_BALANCES = {
+  'emp-001': {granted:20,used:3,remaining:17},
+  'emp-002': {granted:20,used:8,remaining:12},
+  'emp-003': {granted:11,used:1,remaining:10},
+  'emp-004': {granted:14,used:5,remaining:9},
+  'emp-005': {granted:18,used:2,remaining:16},
+};
+
+// Generated monthly summaries
+const SUMMARIES = [
+  {id:'emp-001',name:'田中 太郎',dept:'エンジニアリング部',workDays:18,leaveDays:1,absentDays:0,totalWork:2340,overtime:420,lateNight:90,wage:2500,alerts:['⚡ 月間残業7.0h']},
+  {id:'emp-002',name:'鈴木 花子',dept:'営業部',workDays:16,leaveDays:2,absentDays:0,totalWork:2080,overtime:600,lateNight:0,wage:3000,alerts:['⚠️ 月間残業10.0h']},
+  {id:'emp-003',name:'佐藤 健二',dept:'エンジニアリング部',workDays:17,leaveDays:0,absentDays:1,totalWork:2380,overtime:780,lateNight:120,wage:2000,alerts:['⚠️ 月間残業13.0h','📅 今月有給取得なし']},
+  {id:'emp-004',name:'山田 美咲',dept:'人事部',workDays:19,leaveDays:0,absentDays:0,totalWork:2280,overtime:120,lateNight:0,wage:2200,alerts:[]},
+  {id:'emp-005',name:'中村 誠',dept:'経理部',workDays:17,leaveDays:1,absentDays:0,totalWork:2640,overtime:960,lateNight:180,wage:2800,alerts:['⚠️ 月間残業16.0h — 36協定上限に近い']},
+];
+
+// Simulated leave requests
+let LEAVE_REQUESTS = [
+  {id:'lr-001',employee_id:'emp-002',employee_name:'鈴木 花子',type:'有給休暇',start_date:'2025-05-12',end_date:'2025-05-13',days:2,reason:'私用のため',status:'approved'},
+  {id:'lr-002',employee_id:'emp-004',employee_name:'山田 美咲',type:'有給休暇',start_date:'2025-05-20',end_date:'2025-05-20',days:1,reason:'通院のため',status:'approved'},
+  {id:'lr-003',employee_id:'emp-001',employee_name:'田中 太郎',type:'午前半休',start_date:'2025-05-08',end_date:'2025-05-08',days:0.5,reason:'',status:'approved'},
+  {id:'lr-004',employee_id:'emp-003',employee_name:'佐藤 健二',type:'有給休暇',start_date:'2025-05-28',end_date:'2025-05-29',days:2,reason:'旅行',status:'pending'},
+  {id:'lr-005',employee_id:'emp-005',employee_name:'中村 誠',type:'有給休暇',start_date:'2025-05-15',end_date:'2025-05-15',days:1,reason:'家族行事',status:'approved'},
+];
+
+// Daily attendance simulation (current month)
+function genDailyAttendance(empId, workIn, workOut) {
+  const records = [];
+  const now = new Date();
+  const year = currentYear, month = currentMonth;
+  const patterns = {
+    'emp-001': {in:[9,10],out:[18,20]},
+    'emp-002': {in:[8,9],out:[17,18]},
+    'emp-003': {in:[10,11],out:[19,21]},
+    'emp-004': {in:[9,9],out:[17,18]},
+    'emp-005': {in:[8,9],out:[19,22]},
+  };
+  const pat = patterns[empId] || {in:[9,10],out:[17,18]};
+  for (let d = 1; d <= (year===now.getFullYear()&&month===now.getMonth()+1?now.getDate():28); d++) {
+    const dt = new Date(year, month-1, d);
+    if (dt.getDay()===0||dt.getDay()===6) continue;
+    const skip = (d + empId.charCodeAt(4)) % 11 === 0 && d > 1;
+    if (skip) {
+      records.push({date:fmt(dt),weekday:wd(dt),status:(d+empId.length)%3===0?'欠勤':'有給休暇',clockIn:null,clockOut:null,work:0,ot:0,late:0});
+      continue;
+    }
+    const inH = pat.in[0] + (d*7%30>15?1:0);
+    const inM = d*7%30;
+    const outH = pat.out[0] + (d*11%45>22?1:0);
+    const outM = d*11%45;
+    const totalMins = (outH*60+outM)-(inH*60+inM)-60; // minus 60 break
+    const ot = Math.max(0, totalMins-480);
+    const late = outH >= 22 ? Math.max(0,(outH*60+outM)-(22*60)) : 0;
+    records.push({
+      date: fmt(dt), weekday: wd(dt),
+      status: ot > 0 ? '出勤（残業）' : '出勤',
+      clockIn: `${String(inH).padStart(2,'0')}:${String(inM).padStart(2,'0')}`,
+      clockOut: `${String(outH).padStart(2,'0')}:${String(outM).padStart(2,'0')}`,
+      work: totalMins, ot, late, note: ot > 120 ? '長時間残業' : ''
+    });
+  }
+  return records;
+}
+
+function fmt(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function wd(d) { return ['日','月','火','水','木','金','土'][d.getDay()]; }
+function minsToHHMM(m) { if(!m||m<=0)return '--:--'; return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`; }
+function formatWage(n) { return '¥'+Math.round(n).toLocaleString(); }
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+
+const now = new Date();
+let currentYear = now.getFullYear();
+let currentMonth = now.getMonth() + 1;
+let selectedClockEmp = 'emp-001';
+let clockLog = [];
+
+// ═══════════════════════════════════════════
+// CLOCK
+// ═══════════════════════════════════════════
+
+function updateClock() {
+  const n = new Date();
+  document.getElementById('clock-display').textContent =
+    `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`;
+  document.getElementById('date-display').textContent =
+    `${n.getFullYear()}年${String(n.getMonth()+1).padStart(2,'0')}月${String(n.getDate()).padStart(2,'0')}日`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+function updateMonthLabel() {
+  document.getElementById('month-label').textContent = `${currentYear}年${String(currentMonth).padStart(2,'0')}月`;
+}
+
+function changeMonth(dir) {
+  currentMonth += dir;
+  if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+  if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+  updateMonthLabel();
+  renderCurrentPage();
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+
+let currentPage = 'dashboard';
+const pageTitles = {
+  dashboard:'ダッシュボード', clock:'打刻', attendance:'月次勤怠',
+  overtime:'残業管理', leave:'有給休暇', leavereq:'休暇申請', report:'月次レポート'
+};
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.textContent.trim().includes(pageTitles[name]?.slice(0,4) || '')) n.classList.add('active');
+  });
+  document.getElementById('page-title-text').textContent = pageTitles[name] || '';
+  currentPage = name;
+  renderCurrentPage();
+}
+
+function renderCurrentPage() {
+  switch(currentPage) {
+    case 'dashboard': renderDashboard(); break;
+    case 'clock': renderClockPage(); break;
+    case 'attendance': renderAttendancePage(); break;
+    case 'overtime': renderOvertimePage(); break;
+    case 'leave': renderLeavePage(); break;
+    case 'leavereq': renderLeaveReqPage(); break;
+    case 'report': renderReportPage(); break;
+  }
+}
+
+// ═══════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════
+
+function renderDashboard() {
+  renderWeeklyBars();
+  renderOTRanking();
+  renderAlerts();
+  renderTodayTable();
+}
+
+function renderWeeklyBars() {
+  const weeks = [
+    {label:'第1週', work:192, ot:28},
+    {label:'第2週', work:200, ot:35},
+    {label:'第3週', work:185, ot:22},
+    {label:'第4週', work:178, ot:42},
+    {label:'今週', work:92, ot:18},
+  ];
+  const maxH = Math.max(...weeks.map(w => w.work + w.ot));
+  const el = document.getElementById('weekly-bars');
+  el.innerHTML = weeks.map(w => {
+    const workPct = (w.work/maxH)*92;
+    const otPct = (w.ot/maxH)*92;
+    return `<div class="bar-col">
+      <div class="bar-fill ot" style="height:${otPct}px" title="残業 ${w.ot}h"></div>
+      <div class="bar-fill work" style="height:${workPct}px" title="法定内 ${w.work}h"></div>
+      <div class="bar-label">${w.label.replace('第','').replace('週','W')}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderOTRanking() {
+  const maxOT = Math.max(...SUMMARIES.map(s => s.overtime));
+  const sorted = [...SUMMARIES].sort((a,b) => b.overtime - a.overtime);
+  document.getElementById('ot-ranking').innerHTML = sorted.map(s => {
+    const pct = (s.overtime/maxOT)*100;
+    const color = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--amber)' : 'var(--blue)';
+    const hrs = (s.overtime/60).toFixed(1);
+    return `<div class="ot-row">
+      <div class="ot-name">${s.name.split(' ')[1]}</div>
+      <div class="ot-bar-track"><div class="ot-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="ot-hours">${hrs}h</div>
+    </div>`;
+  }).join('');
+}
+
+function renderAlerts() {
+  const alerts = [
+    {icon:'⚠️', emp:'中村 誠', msg:'月間残業16.0h — 36協定上限（45h）に近づいています', time:'今月'},
+    {icon:'⚠️', emp:'佐藤 健二', msg:'月間残業13.0h、今月の有給取得がありません', time:'今月'},
+    {icon:'🌙', emp:'中村 誠', msg:'深夜労働3.0h — 健康管理の観点から確認が必要です', time:'今月'},
+    {icon:'📅', emp:'山田 美咲', msg:'有給取得率64% — 年間目標70%に近づいています', time:'参考'},
+  ];
+  document.getElementById('alert-list').innerHTML = alerts.map(a =>
+    `<div class="alert-item">
+      <span class="alert-icon">${a.icon}</span>
+      <div class="alert-body">
+        <div class="alert-emp">${a.emp}</div>
+        <div class="alert-msg">${a.msg}</div>
+      </div>
+      <span class="alert-time">${a.time}</span>
+    </div>`
+  ).join('');
+  document.getElementById('alert-count-badge').textContent = alerts.length + '件';
+}
+
+function renderTodayTable() {
+  const todayRecords = [
+    {id:'emp-001',name:'田中 太郎',dept:'エンジニアリング部',in:'09:14',out:'--:--',work:null,ot:0,status:'出勤中'},
+    {id:'emp-002',name:'鈴木 花子',dept:'営業部',in:'08:07',out:'17:52',work:585,ot:105,status:'退勤済'},
+    {id:'emp-003',name:'佐藤 健二',dept:'エンジニアリング部',in:'10:22',out:'--:--',work:null,ot:0,status:'出勤中'},
+    {id:'emp-004',name:'山田 美咲',dept:'人事部',in:'09:03',out:'18:12',work:549,ot:69,status:'退勤済'},
+    {id:'emp-005',name:'中村 誠',dept:'経理部',in:'--:--',out:'--:--',work:null,ot:0,status:'欠勤'},
+  ];
+
+  document.getElementById('today-table').innerHTML = todayRecords.map(r => {
+    let statusChip = '';
+    const s = r.status;
+    if (s==='出勤中') statusChip = '<span class="chip chip-present">● 出勤中</span>';
+    else if (s==='退勤済') statusChip = '<span class="chip chip-approved">✓ 退勤済</span>';
+    else if (s==='欠勤') statusChip = '<span class="chip chip-absent">✗ 欠勤</span>';
+    else statusChip = `<span class="chip chip-remote">${s}</span>`;
+    const otCell = r.ot > 0 ? `<span style="color:var(--red);font-family:var(--mono)">${minsToHHMM(r.ot)}</span>` : `<span style="color:var(--text-faint)">--:--</span>`;
+    return `<tr>
+      <td><strong>${r.name}</strong></td>
+      <td class="dim">${r.dept.replace('部','')}</td>
+      <td class="mono">${r.in}</td>
+      <td class="mono">${r.out}</td>
+      <td class="mono">${r.work ? minsToHHMM(r.work) : '<span style="color:var(--text-faint)">進行中</span>'}</td>
+      <td>${otCell}</td>
+      <td>${statusChip}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// CLOCK PAGE
+// ═══════════════════════════════════════════
+
+function renderClockPage() {
+  // Employee selector chips
+  document.getElementById('clock-emp-select').innerHTML = EMPLOYEES.map(e =>
+    `<div class="emp-chip ${e.id===selectedClockEmp?'selected':''}" onclick="selectClockEmp('${e.id}')">${e.name.split(' ')[1]}</div>`
+  ).join('');
+
+  // Status table
+  const statuses = [
+    {id:'emp-001',name:'田中 太郎',in:'09:14',out:'--:--',status:'出勤中'},
+    {id:'emp-002',name:'鈴木 花子',in:'08:07',out:'17:52',status:'退勤済'},
+    {id:'emp-003',name:'佐藤 健二',in:'10:22',out:'--:--',status:'出勤中'},
+    {id:'emp-004',name:'山田 美咲',in:'09:03',out:'18:12',status:'退勤済'},
+    {id:'emp-005',name:'中村 誠',in:'--:--',out:'--:--',status:'未出勤'},
+  ];
+
+  document.getElementById('clock-status-table').innerHTML = statuses.map(s => {
+    let chip = '';
+    if (s.status==='出勤中') chip = '<span class="chip chip-present">● 出勤中</span>';
+    else if (s.status==='退勤済') chip = '<span class="chip chip-approved">✓ 退勤済</span>';
+    else chip = '<span class="chip chip-absent">○ 未出勤</span>';
+    return `<tr>
+      <td><strong>${s.name}</strong></td>
+      <td class="mono">${s.in}</td>
+      <td class="mono">${s.out}</td>
+      <td>${chip}</td>
+    </tr>`;
+  }).join('');
+
+  // Log
+  renderClockLog();
+}
+
+function selectClockEmp(id) {
+  selectedClockEmp = id;
+  renderClockPage();
+}
+
+function doClock(type) {
+  const emp = EMPLOYEES.find(e => e.id === selectedClockEmp);
+  if (!emp) return;
+  const n = new Date();
+  const timeStr = `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+  const typeMap = {clock_in:'出勤', clock_out:'退勤', break_start:'休憩開始', break_end:'休憩終了'};
+  const colorMap = {clock_in:'var(--green)', clock_out:'var(--red)', break_start:'var(--amber)', break_end:'var(--blue)'};
+  clockLog.unshift({time:timeStr, type:typeMap[type], color:colorMap[type], emp:emp.name});
+  if (clockLog.length > 20) clockLog.pop();
+  renderClockLog();
+  showToast(`${emp.name}: ${typeMap[type]}を記録しました (${timeStr})`, 'success');
+}
+
+function renderClockLog() {
+  const el = document.getElementById('clock-log');
+  if (clockLog.length === 0) {
+    el.innerHTML = '<div style="font-family:var(--mono);font-size:9px;color:var(--text-faint);letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px">打刻ログ</div><div class="empty">打刻を行うとここに表示されます</div>';
+    return;
+  }
+  el.innerHTML = '<div style="font-family:var(--mono);font-size:9px;color:var(--text-faint);letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px">打刻ログ</div>' +
+    clockLog.map(l =>
+      `<div class="log-entry">
+        <span class="log-time">${l.time}</span>
+        <span class="log-type" style="color:${l.color}">${l.type}</span>
+        <span class="log-emp">${l.emp}</span>
+      </div>`
+    ).join('');
+}
+
+// ═══════════════════════════════════════════
+// ATTENDANCE PAGE
+// ═══════════════════════════════════════════
+
+function renderAttendancePage() {
+  const sel = document.getElementById('att-emp-select');
+  if (!sel.innerHTML.includes('option')) {
+    sel.innerHTML = EMPLOYEES.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+  }
+  const monthInput = document.getElementById('att-month-input');
+  if (!monthInput.value) {
+    monthInput.value = `${currentYear}-${String(currentMonth).padStart(2,'0')}`;
+  }
+
+  const empId = sel.value || 'emp-001';
+  const [yr, mo] = monthInput.value.split('-').map(Number);
+  const records = genDailyAttendance(empId, yr, mo);
+
+  // KPIs
+  const workDays = records.filter(r => r.status.includes('出勤')).length;
+  const leaveDays = records.filter(r => r.status.includes('有給')).length;
+  const absentDays = records.filter(r => r.status==='欠勤').length;
+  const totalWork = records.reduce((s,r) => s + (r.work||0), 0);
+  const totalOT = records.reduce((s,r) => s + (r.ot||0), 0);
+
+  document.getElementById('att-kpis').innerHTML = `
+    <div class="kpi-card amber"><div class="kpi-label">出勤日数</div><div class="kpi-value amber">${workDays}</div><div class="kpi-sub">日</div></div>
+    <div class="kpi-card green"><div class="kpi-label">総労働時間</div><div class="kpi-value">${minsToHHMM(totalWork)}</div><div class="kpi-sub">hh:mm</div></div>
+    <div class="kpi-card red"><div class="kpi-label">残業時間</div><div class="kpi-value red">${minsToHHMM(totalOT)}</div><div class="kpi-sub">hh:mm</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">有給使用</div><div class="kpi-value">${leaveDays}</div><div class="kpi-sub">日</div></div>
+  `;
+
+  // Table
+  document.getElementById('att-table').innerHTML = records.map(r => {
+    let chip = '';
+    if (r.status.includes('出勤（残業）')) chip = '<span class="chip chip-ot">残業</span>';
+    else if (r.status.includes('出勤')) chip = '<span class="chip chip-present">出勤</span>';
+    else if (r.status.includes('有給')) chip = '<span class="chip chip-leave">有給</span>';
+    else if (r.status==='欠勤') chip = '<span class="chip chip-absent">欠勤</span>';
+    else chip = `<span class="chip chip-pending">${r.status}</span>`;
+
+    const isWeekend = r.weekday==='土'||r.weekday==='日';
+    const rowStyle = isWeekend ? 'color:var(--text-faint)' : '';
+    const otStyle = r.ot > 0 ? 'color:var(--red);font-family:var(--mono)' : 'color:var(--text-faint);font-family:var(--mono)';
+    const lateStyle = r.late > 0 ? 'color:var(--amber);font-family:var(--mono)' : 'color:var(--text-faint);font-family:var(--mono)';
+
+    return `<tr style="${rowStyle}">
+      <td class="mono">${r.date}</td>
+      <td style="text-align:center;font-weight:600;color:${r.weekday==='日'?'var(--red)':r.weekday==='土'?'var(--blue)':'var(--text-dim)'}">${r.weekday}</td>
+      <td class="mono">${r.clockIn||'--:--'}</td>
+      <td class="mono">${r.clockOut||'--:--'}</td>
+      <td class="mono dim">60分</td>
+      <td class="mono">${r.work ? minsToHHMM(r.work) : '--:--'}</td>
+      <td style="${otStyle}">${r.ot ? minsToHHMM(r.ot) : '--:--'}</td>
+      <td style="${lateStyle}">${r.late ? minsToHHMM(r.late) : '--:--'}</td>
+      <td>${chip}</td>
+      <td class="dim" style="font-size:10px">${r.note||''}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// OVERTIME PAGE
+// ═══════════════════════════════════════════
+
+function renderOvertimePage() {
+  // Summary cards
+  const totalOT = SUMMARIES.reduce((s,x) => s+x.overtime, 0);
+  const maxOT = Math.max(...SUMMARIES.map(x => x.overtime));
+  const atRisk = SUMMARIES.filter(x => x.overtime > 2700).length; // >45h
+
+  document.getElementById('ot-summary-cards').innerHTML = `
+    <div class="kpi-card red">
+      <div class="kpi-label">全社 残業時間</div>
+      <div class="kpi-value red">${minsToHHMM(totalOT)}</div>
+      <div class="kpi-sub">今月合計</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">最大 残業者</div>
+      <div class="kpi-value amber">${minsToHHMM(maxOT)}</div>
+      <div class="kpi-sub">${SUMMARIES.find(x=>x.overtime===maxOT)?.name||''}</div>
+    </div>
+    <div class="kpi-card ${atRisk>0?'red':'green'}">
+      <div class="kpi-label">36協定 超過リスク</div>
+      <div class="kpi-value ${atRisk>0?'red':'green'}">${atRisk}</div>
+      <div class="kpi-sub">名</div>
+    </div>
+  `;
+
+  const sorted = [...SUMMARIES].sort((a,b) => b.overtime - a.overtime);
+  document.getElementById('ot-table').innerHTML = sorted.map(s => {
+    const otH = s.overtime/60;
+    const lnH = s.lateNight/60;
+    const legalWork = minsToHHMM(s.totalWork - s.overtime);
+    const otPay = Math.round(otH * s.wage * 1.25 + lnH * s.wage * 0.25);
+    const status36 = otH > 45
+      ? '<span class="chip chip-absent">超過</span>'
+      : otH > 40
+        ? '<span class="chip chip-pending">警告</span>'
+        : '<span class="chip chip-approved">適法</span>';
+    return `<tr>
+      <td><strong>${s.name}</strong></td>
+      <td class="dim">${s.dept.replace('部','')}</td>
+      <td class="mono">${legalWork}</td>
+      <td class="mono" style="color:${otH>15?'var(--red)':otH>8?'var(--amber)':'var(--text)'}">${minsToHHMM(s.overtime)}</td>
+      <td class="mono" style="color:${lnH>2?'var(--amber)':'var(--text-dim)'}">${minsToHHMM(s.lateNight)}</td>
+      <td class="mono" style="color:var(--amber)">${formatWage(otPay)}</td>
+      <td>${status36}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// LEAVE PAGE
+// ═══════════════════════════════════════════
+
+function renderLeavePage() {
+  // Balance cards
+  document.getElementById('leave-balance-cards').innerHTML = EMPLOYEES.map(e => {
+    const bal = LEAVE_BALANCES[e.id] || {granted:10,used:0,remaining:10};
+    const usedPct = bal.granted > 0 ? (bal.used/bal.granted)*100 : 0;
+    const color = bal.remaining <= 3 ? 'var(--red)' : bal.remaining <= 7 ? 'var(--amber)' : 'var(--green)';
+    return `<div class="leave-card">
+      <div class="leave-card-name">${e.name}</div>
+      <div class="leave-card-dept">${e.department.replace('部','')}</div>
+      <div class="leave-ring">
+        <div class="leave-big" style="color:${color}">${bal.remaining}</div>
+        <div class="leave-total">/ ${bal.granted}日</div>
+      </div>
+      <div class="leave-mini-bar">
+        <div class="leave-mini-fill" style="width:${usedPct}%;background:${color}"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-family:var(--mono);font-size:9px;color:var(--text-faint)">
+        <span>使用 ${bal.used}日</span>
+        <span>残 ${bal.remaining}日</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Leave requests table
+  document.getElementById('leave-table').innerHTML = LEAVE_REQUESTS.map(r => {
+    const statusChip =
+      r.status==='approved' ? '<span class="chip chip-approved">✓ 承認済</span>' :
+      r.status==='rejected' ? '<span class="chip chip-rejected">✗ 却下</span>' :
+      '<span class="chip chip-pending">⏳ 申請中</span>';
+    const actionBtn = r.status==='pending'
+      ? `<div style="display:flex;gap:4px">
+          <button onclick="approveLeave('${r.id}','approve')" style="padding:3px 8px;background:var(--green-dim);border:1px solid var(--green);border-radius:2px;color:var(--green);font-size:10px;cursor:pointer;font-family:var(--mono)">承認</button>
+          <button onclick="approveLeave('${r.id}','reject')" style="padding:3px 8px;background:var(--red-dim);border:1px solid var(--red);border-radius:2px;color:var(--red);font-size:10px;cursor:pointer;font-family:var(--mono)">却下</button>
+        </div>`
+      : '<span style="font-size:10px;color:var(--text-faint)">—</span>';
+    return `<tr id="lr-${r.id}">
+      <td><strong>${r.employee_name}</strong></td>
+      <td>${r.type}</td>
+      <td class="mono">${r.start_date}</td>
+      <td class="mono">${r.end_date}</td>
+      <td class="mono">${r.days}日</td>
+      <td class="dim" style="font-size:11px">${r.reason||'—'}</td>
+      <td>${statusChip}</td>
+      <td>${actionBtn}</td>
+    </tr>`;
+  }).join('');
+}
+
+function approveLeave(id, action) {
+  const req = LEAVE_REQUESTS.find(r => r.id === id);
+  if (!req) return;
+  req.status = action === 'approve' ? 'approved' : 'rejected';
+  if (action === 'approve' && LEAVE_BALANCES[req.employee_id]) {
+    LEAVE_BALANCES[req.employee_id].used += req.days;
+    LEAVE_BALANCES[req.employee_id].remaining -= req.days;
+  }
+  const msg = action === 'approve' ? `${req.employee_name}の有給申請を承認しました` : `${req.employee_name}の有給申請を却下しました`;
+  showToast(msg, action === 'approve' ? 'success' : 'info');
+  renderLeavePage();
+}
+
+// ═══════════════════════════════════════════
+// LEAVE REQUEST PAGE
+// ═══════════════════════════════════════════
+
+function renderLeaveReqPage() {
+  const sel = document.getElementById('leave-emp');
+  sel.innerHTML = EMPLOYEES.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('leave-start').value = today;
+  document.getElementById('leave-end').value = today;
+}
+
+function submitLeave() {
+  const empId = document.getElementById('leave-emp').value;
+  const type = document.getElementById('leave-type').value;
+  const start = document.getElementById('leave-start').value;
+  const end = document.getElementById('leave-end').value;
+  const reason = document.getElementById('leave-reason').value;
+
+  if (!empId || !start || !end) {
+    showToast('必須項目を入力してください', 'error');
+    return;
+  }
+
+  const emp = EMPLOYEES.find(e => e.id === empId);
+  const startDt = new Date(start), endDt = new Date(end);
+  let days = 0;
+  for (let d = new Date(startDt); d <= endDt; d.setDate(d.getDate()+1)) {
+    if (d.getDay() !== 0 && d.getDay() !== 6) days++;
+  }
+  if (type.includes('半休')) days = 0.5;
+
+  LEAVE_REQUESTS.unshift({
+    id: 'lr-' + Date.now(),
+    employee_id: empId,
+    employee_name: emp.name,
+    type, start_date:start, end_date:end,
+    days, reason, status:'pending'
+  });
+
+  showToast(`${emp.name}: ${type}申請を送信しました（${days}日）`, 'success');
+  document.getElementById('leave-reason').value = '';
+}
+
+// ═══════════════════════════════════════════
+// REPORT PAGE
+// ═══════════════════════════════════════════
+
+function renderReportPage() {
+  const totalWork = SUMMARIES.reduce((s,x)=>s+x.totalWork,0);
+  const totalOT = SUMMARIES.reduce((s,x)=>s+x.overtime,0);
+  const totalOTPay = SUMMARIES.reduce((s,x)=>s+Math.round(x.overtime/60*x.wage*1.25),0);
+  const alertCount = SUMMARIES.reduce((s,x)=>s+x.alerts.length,0);
+
+  document.getElementById('report-kpis').innerHTML = `
+    <div class="kpi-card green"><div class="kpi-label">全社 総労働時間</div><div class="kpi-value">${minsToHHMM(totalWork)}</div><div class="kpi-sub">今月</div></div>
+    <div class="kpi-card red"><div class="kpi-label">全社 残業時間</div><div class="kpi-value red">${minsToHHMM(totalOT)}</div><div class="kpi-sub">今月</div></div>
+    <div class="kpi-card amber"><div class="kpi-label">残業代 合計（概算）</div><div class="kpi-value amber">${formatWage(totalOTPay)}</div><div class="kpi-sub">今月</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">労務アラート</div><div class="kpi-value ${alertCount>2?'red':''}">${alertCount}</div><div class="kpi-sub">件</div></div>
+  `;
+
+  document.getElementById('report-table').innerHTML = SUMMARIES.map(s => {
+    const otH = (s.overtime/60).toFixed(1);
+    const lnH = (s.lateNight/60).toFixed(1);
+    const otPay = Math.round(s.overtime/60*s.wage*1.25);
+    const alertsHtml = s.alerts.length
+      ? `<span class="kpi-badge badge-up">${s.alerts.length}件</span>`
+      : '<span class="kpi-badge badge-ok">なし</span>';
+    return `<tr>
+      <td><strong>${s.name}</strong></td>
+      <td class="dim">${s.dept.replace('部','')}</td>
+      <td class="mono">${s.workDays}日</td>
+      <td class="mono" style="color:${s.absentDays>0?'var(--red)':'var(--text-dim)'}">${s.absentDays}日</td>
+      <td class="mono" style="color:var(--blue)">${s.leaveDays}日</td>
+      <td class="mono">${minsToHHMM(s.totalWork)}</td>
+      <td class="mono" style="color:${otH>15?'var(--red)':otH>8?'var(--amber)':'var(--text)'}">${minsToHHMM(s.overtime)}</td>
+      <td class="mono" style="color:${lnH>2?'var(--amber)':'var(--text-dim)'}">${minsToHHMM(s.lateNight)}</td>
+      <td class="mono" style="color:var(--amber)">${formatWage(otPay)}</td>
+      <td>${alertsHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════
+
+function showToast(msg, type='info') {
+  const icons = {success:'✓', error:'✗', info:'⚡'};
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span>${icons[type]||'●'}</span><span>${msg}</span>`;
+  document.getElementById('toast-container').appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = 'toastOut 0.3s ease forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 3200);
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+
+updateMonthLabel();
+renderDashboard();
+</script>
+</body>
+</html>

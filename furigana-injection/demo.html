@@ -1,0 +1,1777 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ふりがな注入ミドルウェア — Furigana Middleware Demo</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;500;700&family=Noto+Sans+JP:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --paper:   #faf8f3;
+  --paper2:  #f3f0e8;
+  --paper3:  #ece8de;
+  --ink:     #1a1810;
+  --ink2:    #3d3a30;
+  --ink3:    #6b6758;
+  --red:     #c0392b;
+  --red2:    #e74c3c;
+  --red-d:   rgba(192,57,43,.08);
+  --blue:    #2c5f8a;
+  --blue-d:  rgba(44,95,138,.08);
+  --green:   #2d6a4f;
+  --gold:    #b8860b;
+  --gold-d:  rgba(184,134,11,.1);
+  --border:  #d4cfc0;
+  --border2: #c4bfaf;
+  --mono:    'JetBrains Mono', monospace;
+  --serif:   'Noto Serif JP', serif;
+  --sans:    'Noto Sans JP', sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--sans);
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* ── PAPER TEXTURE ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0; opacity: .6;
+}
+
+/* ── HEADER ── */
+.header {
+  background: var(--ink);
+  padding: 0 40px;
+  height: 60px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+
+.header-logo {
+  display: flex; align-items: center; gap: 14px;
+}
+
+.logo-ruby {
+  font-family: var(--serif);
+  color: #fff;
+}
+
+.logo-ruby ruby rt {
+  font-size: 0.45em;
+  color: var(--red2);
+  opacity: 1;
+}
+
+.logo-en {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: rgba(255,255,255,.45);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.header-nav {
+  display: flex; gap: 4px;
+}
+
+.hn {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.5);
+  padding: 6px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all .12s;
+  border: 1px solid transparent;
+}
+
+.hn:hover { color: rgba(255,255,255,.8); border-color: rgba(255,255,255,.15); }
+.hn.active { color: #fff; background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.2); }
+
+/* ── CONTENT ── */
+.content {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 32px;
+  position: relative; z-index: 1;
+}
+
+/* ── HERO ── */
+.hero {
+  text-align: center;
+  padding: 48px 0 40px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 40px;
+}
+
+.hero-title {
+  font-family: var(--serif);
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.4;
+  margin-bottom: 8px;
+  letter-spacing: .02em;
+}
+
+.hero-title ruby rt {
+  font-size: 0.38em;
+  color: var(--red);
+  opacity: 1;
+  font-weight: 400;
+}
+
+.hero-sub {
+  font-size: 13px;
+  color: var(--ink3);
+  letter-spacing: .04em;
+  margin-bottom: 20px;
+}
+
+.hero-badges {
+  display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+}
+
+.badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 3px;
+  letter-spacing: .05em;
+  background: var(--paper2);
+  border: 1px solid var(--border);
+  color: var(--ink2);
+}
+
+.badge.red   { background: var(--red-d); border-color: rgba(192,57,43,.25); color: var(--red); }
+.badge.blue  { background: var(--blue-d); border-color: rgba(44,95,138,.25); color: var(--blue); }
+.badge.gold  { background: var(--gold-d); border-color: rgba(184,134,11,.25); color: var(--gold); }
+.badge.green { background: rgba(45,106,79,.08); border-color: rgba(45,106,79,.25); color: var(--green); }
+
+/* ── TABS ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── DEMO SECTION ── */
+.demo-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  margin-bottom: 28px;
+  overflow: hidden;
+}
+
+.dc-header {
+  background: var(--paper2);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+}
+
+.dc-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  display: flex; align-items: center; gap: 7px;
+}
+
+.dc-title::before {
+  content: '';
+  display: block;
+  width: 2px; height: 12px;
+  background: var(--red);
+  border-radius: 1px;
+}
+
+.dc-body { padding: 20px; }
+
+/* ── CONTROLS ── */
+.controls {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;
+  align-items: center;
+}
+
+.ctrl-select {
+  font-family: var(--sans);
+  font-size: 12px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color .12s;
+}
+
+.ctrl-select:focus { outline: none; border-color: var(--red); }
+
+.ctrl-btn {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--ink2);
+  cursor: pointer;
+  transition: all .12s;
+}
+
+.ctrl-btn:hover { border-color: var(--ink3); background: var(--paper2); }
+
+.ctrl-btn.primary {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.ctrl-btn.primary:hover { background: var(--ink2); }
+
+.ctrl-btn.sample {
+  background: var(--red-d);
+  border-color: rgba(192,57,43,.3);
+  color: var(--red);
+}
+
+.ctrl-btn.sample:hover { background: rgba(192,57,43,.14); }
+
+/* ── TEXTAREA ── */
+.input-area {
+  width: 100%;
+  height: 90px;
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.7;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+  transition: border-color .12s;
+}
+
+.input-area:focus { outline: none; border-color: var(--red); }
+
+/* ── RESULT DISPLAY ── */
+.result-area {
+  min-height: 70px;
+  font-family: var(--serif);
+  font-size: 1.35rem;
+  line-height: 2.6;
+  padding: 16px 18px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--ink);
+}
+
+.result-area ruby { ruby-align: center; }
+.result-area ruby rt {
+  font-family: var(--sans);
+  font-size: 0.5em;
+  color: var(--red);
+  opacity: 1;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.result-stats {
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink3);
+  display: flex; gap: 16px; flex-wrap: wrap;
+}
+
+.stat-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+}
+
+.stat-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+}
+
+/* ── SAMPLE TEXTS ── */
+.sample-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.sample-btn {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--paper);
+  cursor: pointer;
+  text-align: left;
+  transition: all .12s;
+}
+
+.sample-btn:hover { border-color: var(--red); background: var(--red-d); }
+.sample-btn.active { border-color: var(--red); background: var(--red-d); }
+
+.sb-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--red);
+  margin-bottom: 3px;
+}
+
+.sb-preview {
+  font-family: var(--serif);
+  font-size: 13px;
+  color: var(--ink2);
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── LIVE READING (article demo) ── */
+.article-demo {
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  line-height: 2.8;
+  color: var(--ink);
+  padding: 24px 28px;
+}
+
+.article-demo ruby { ruby-align: center; }
+.article-demo ruby rt {
+  font-family: var(--sans);
+  font-size: 0.45em;
+  color: var(--red);
+  opacity: 1;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.article-demo h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  margin-bottom: 16px;
+  line-height: 2.2;
+}
+
+.article-demo p { margin-bottom: 20px; }
+
+.no-furigana { /* class to skip annotation */
+  font-style: italic;
+  color: var(--ink3);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+/* ── TOGGLE SWITCH ── */
+.toggle-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 14px;
+}
+
+.toggle-label {
+  font-size: 12px; color: var(--ink2);
+}
+
+.toggle {
+  position: relative;
+  width: 36px; height: 20px;
+  cursor: pointer;
+}
+
+.toggle input { display: none; }
+
+.toggle-track {
+  position: absolute; inset: 0;
+  background: var(--border2);
+  border-radius: 10px;
+  transition: background .2s;
+}
+
+.toggle input:checked + .toggle-track { background: var(--red); }
+
+.toggle-thumb {
+  position: absolute;
+  width: 14px; height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  top: 3px; left: 3px;
+  transition: transform .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+
+.toggle input:checked ~ .toggle-thumb { transform: translateX(16px); }
+
+/* ── TOKEN TABLE ── */
+.token-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-top: 16px;
+}
+
+table { width: 100%; border-collapse: collapse; }
+
+thead th {
+  background: var(--paper2);
+  padding: 8px 12px;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+
+tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--paper2); }
+
+tbody td {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--ink);
+  vertical-align: middle;
+}
+
+td.mono { font-family: var(--mono); font-size: 12px; }
+td.ruby-preview { font-family: var(--serif); font-size: 1.1rem; line-height: 2; }
+td.ruby-preview ruby rt { font-size: 0.45em; color: var(--red); font-family: var(--sans); }
+
+/* ── CODE BLOCK ── */
+.code-panel {
+  background: #1e1c18;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+
+.code-tabs {
+  display: flex; border-bottom: 1px solid rgba(255,255,255,.07);
+  padding: 0 16px;
+}
+
+.code-tab {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: rgba(255,255,255,.35);
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all .12s;
+  letter-spacing: .04em;
+}
+
+.code-tab:hover { color: rgba(255,255,255,.6); }
+.code-tab.active { color: #e8d5a0; border-bottom-color: var(--red); }
+
+.code-body {
+  padding: 20px 24px;
+  overflow-x: auto;
+}
+
+pre {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  color: #d4cfbe;
+  margin: 0;
+  white-space: pre;
+}
+
+.kw  { color: #cc9966; }
+.str { color: #98c379; }
+.cmt { color: #5c6370; font-style: italic; }
+.fn  { color: #e0c080; }
+.tp  { color: #88bbdd; }
+.num { color: #d19a66; }
+
+/* ── LOOKUP PANEL ── */
+.lookup-result {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px 24px;
+  display: none;
+  margin-top: 12px;
+}
+
+.lookup-result.visible { display: block; }
+
+.lr-kanji {
+  font-family: var(--serif);
+  font-size: 3.5rem;
+  line-height: 1.2;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.lr-readings {
+  display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px;
+}
+
+.lr-reading {
+  display: flex; flex-direction: column; gap: 2px;
+}
+
+.lr-script {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ink3);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.lr-value {
+  font-family: var(--serif);
+  font-size: 1.6rem;
+  color: var(--ink);
+}
+
+.lr-value.hiragana { color: var(--red); }
+.lr-value.romaji { font-family: var(--mono); font-size: 1.1rem; color: var(--blue); }
+.lr-value.katakana { color: var(--ink2); }
+
+.jlpt-badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 3px;
+  margin-top: 10px;
+}
+
+.jlpt-5 { background: rgba(45,106,79,.1); color: var(--green); border: 1px solid rgba(45,106,79,.25); }
+.jlpt-4 { background: var(--blue-d); color: var(--blue); border: 1px solid rgba(44,95,138,.25); }
+.jlpt-3 { background: var(--gold-d); color: var(--gold); border: 1px solid rgba(184,134,11,.25); }
+.jlpt-2 { background: var(--red-d); color: var(--red); border: 1px solid rgba(192,57,43,.25); }
+.jlpt-1 { background: rgba(26,24,16,.08); color: var(--ink); border: 1px solid rgba(26,24,16,.2); }
+
+/* ── ARCHITECTURE DIAGRAM ── */
+.arch-diagram {
+  background: #1e1c18;
+  border-radius: 6px;
+  padding: 28px;
+  color: #d4cfbe;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.9;
+  margin-bottom: 28px;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* ── PIPELINE STEPS ── */
+.pipeline {
+  display: flex;
+  gap: 0;
+  margin-bottom: 28px;
+  overflow-x: auto;
+}
+
+.pipe-step {
+  flex: 1;
+  min-width: 120px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-right: none;
+  text-align: center;
+  position: relative;
+  transition: background .12s;
+}
+
+.pipe-step:first-child { border-radius: 6px 0 0 6px; }
+.pipe-step:last-child  { border-right: 1px solid var(--border); border-radius: 0 6px 6px 0; }
+
+.pipe-step::after {
+  content: '›';
+  position: absolute;
+  right: -8px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: var(--red);
+  font-weight: 700;
+  z-index: 1;
+}
+
+.pipe-step:last-child::after { display: none; }
+
+.pipe-step:hover { background: var(--paper2); }
+
+.ps-num {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--red);
+  letter-spacing: .1em;
+  margin-bottom: 4px;
+}
+
+.ps-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+.ps-desc {
+  font-size: 10px;
+  color: var(--ink3);
+  line-height: 1.4;
+}
+
+/* ── TOAST ── */
+.toast-container {
+  position: fixed;
+  bottom: 20px; right: 20px;
+  z-index: 1000;
+  display: flex; flex-direction: column; gap: 6px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--ink);
+  color: #fff;
+  border-radius: 4px;
+  padding: 10px 16px;
+  font-size: 12px;
+  display: flex; align-items: center; gap: 8px;
+  animation: toastIn .2s ease;
+  min-width: 220px;
+  pointer-events: all;
+}
+
+.toast.success { border-left: 3px solid var(--green); }
+.toast.error   { border-left: 3px solid var(--red2); }
+
+@keyframes toastIn { from { opacity:0; transform: translateX(14px); } to { opacity:1; transform: none; } }
+@keyframes toastOut { from { opacity:1; } to { opacity:0; } }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-logo">
+    <span class="logo-ruby" style="font-size:1.2rem;font-weight:700">
+      <ruby><rb>振</rb><rt>ふ</rt></ruby><ruby><rb>仮</rb><rt>り</rt></ruby><ruby><rb>名</rb><rt>がな</rt></ruby>
+    </span>
+    <span class="logo-en">Furigana Middleware</span>
+  </div>
+  <div class="header-nav">
+    <div class="hn active" onclick="showTab('demo')">デモ</div>
+    <div class="hn" onclick="showTab('reader')">読み物</div>
+    <div class="hn" onclick="showTab('lookup')">単語検索</div>
+    <div class="hn" onclick="showTab('api')">API</div>
+    <div class="hn" onclick="showTab('arch')">設計</div>
+  </div>
+</header>
+
+<div class="content">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-title">
+      <ruby><rb>振</rb><rt>ふ</rt></ruby><ruby><rb>仮</rb><rt>り</rt></ruby><ruby><rb>名</rb><rt>がな</rt></ruby>
+      <ruby><rb>注</rb><rt>ちゅう</rt></ruby><ruby><rb>入</rb><rt>にゅう</rt></ruby>
+      <ruby><rb>自</rb><rt>じ</rt></ruby><ruby><rb>動</rb><rt>どう</rt></ruby>
+    </div>
+    <div class="hero-sub">Go HTTP middleware · Automatic furigana injection · Pure Go · Zero CGO</div>
+    <div class="hero-badges">
+      <span class="badge green">Go 1.21</span>
+      <span class="badge red">Zero CGO</span>
+      <span class="badge blue">MeCab Interface</span>
+      <span class="badge gold">3,000+ 語彙</span>
+      <span class="badge">Ruby HTML</span>
+      <span class="badge">JLPT N5–N1</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ DEMO TAB ══════════════════════════ -->
+  <div class="page active" id="tab-demo">
+
+    <!-- Sample selector -->
+    <div class="demo-card">
+      <div class="dc-header">
+        <div class="dc-title">サンプルテキスト</div>
+      </div>
+      <div class="dc-body">
+        <div class="sample-grid" id="sample-grid">
+          <!-- JS rendered -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Main annotation panel -->
+    <div class="demo-card">
+      <div class="dc-header">
+        <div class="dc-title">ふりがな注入 / Inject Furigana</div>
+        <div style="display:flex;gap:8px">
+          <select class="ctrl-select" id="mode-sel" onchange="runAnnotate()">
+            <option value="hiragana">ひらがな</option>
+            <option value="katakana">カタカナ</option>
+            <option value="romaji">Romaji</option>
+          </select>
+          <select class="ctrl-select" id="level-sel" onchange="runAnnotate()">
+            <option value="all">全漢字</option>
+            <option value="jlpt_n5">JLPT N5のみ</option>
+            <option value="jlpt_n4">N5+N4</option>
+            <option value="jlpt_n3">N5〜N3</option>
+            <option value="advanced">上級のみ (N2+N1)</option>
+          </select>
+        </div>
+      </div>
+      <div class="dc-body">
+        <textarea class="input-area" id="input-text"
+          placeholder="日本語テキストを入力してください…"
+          oninput="debounceAnnotate()">東京都は日本の首都です。日本語の学習は難しいですが、漢字を覚えると読解力が向上します。</textarea>
+        <div style="margin-top:12px">
+          <div class="dc-title" style="margin-bottom:10px">結果</div>
+          <div class="result-area" id="result-area">
+            <!-- JS rendered -->
+          </div>
+          <div class="result-stats" id="result-stats"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Token breakdown table -->
+    <div class="demo-card" id="token-card" style="display:none">
+      <div class="dc-header">
+        <div class="dc-title">トークン詳細 / Token Breakdown</div>
+        <button class="ctrl-btn" onclick="document.getElementById('token-card').style.display='none'">閉じる</button>
+      </div>
+      <div class="dc-body" style="padding:0">
+        <div class="token-table-wrap" style="border:none;border-radius:0">
+          <table>
+            <thead>
+              <tr>
+                <th>表層形</th>
+                <th>ひらがな</th>
+                <th>カタカナ</th>
+                <th>ローマ字</th>
+                <th>品詞</th>
+                <th>プレビュー</th>
+              </tr>
+            </thead>
+            <tbody id="token-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════ READER TAB ══════════════════════════ -->
+  <div class="page" id="tab-reader">
+
+    <div class="demo-card">
+      <div class="dc-header">
+        <div class="dc-title">読み物サンプル / Reading Samples</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="toggle-row" style="margin:0">
+            <label class="toggle">
+              <input type="checkbox" id="reader-toggle" checked onchange="toggleReaderFurigana()">
+              <div class="toggle-track"></div>
+              <div class="toggle-thumb"></div>
+            </label>
+            <span class="toggle-label" style="font-size:11px">ふりがな表示</span>
+          </div>
+          <select class="ctrl-select" id="reader-sample" onchange="loadReaderSample()">
+            <option value="news">ニュース記事</option>
+            <option value="soseki">夏目漱石『吾輩は猫である』</option>
+            <option value="tech">技術文書</option>
+            <option value="children">子ども向け</option>
+          </select>
+        </div>
+      </div>
+      <div class="article-demo" id="reader-content">
+        <!-- JS rendered -->
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════ LOOKUP TAB ══════════════════════════ -->
+  <div class="page" id="tab-lookup">
+
+    <div class="demo-card">
+      <div class="dc-header">
+        <div class="dc-title">単語・漢字検索 / Word Lookup</div>
+      </div>
+      <div class="dc-body">
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <input type="text" id="lookup-input"
+            style="flex:1;font-family:var(--serif);font-size:1.1rem;padding:10px 14px;border:1px solid var(--border);border-radius:4px;background:var(--paper);color:var(--ink)"
+            placeholder="漢字を入力… 例: 東京、日本語、難しい"
+            oninput="debounceeLookup()"
+            onkeydown="if(event.key==='Enter')runLookup()">
+          <button class="ctrl-btn primary" onclick="runLookup()">検索</button>
+        </div>
+
+        <!-- Common kanji shortcuts -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+          <span style="font-family:var(--mono);font-size:9px;color:var(--ink3);align-self:center;letter-spacing:.1em;text-transform:uppercase">よく使う →</span>
+          <div id="quick-words"></div>
+        </div>
+
+        <div class="lookup-result" id="lookup-result"></div>
+      </div>
+    </div>
+
+    <!-- Browse dictionary -->
+    <div class="demo-card">
+      <div class="dc-header">
+        <div class="dc-title">辞書ブラウズ / Dictionary Browse</div>
+        <select class="ctrl-select" id="dict-level" onchange="renderDictBrowse()">
+          <option value="5">JLPT N5</option>
+          <option value="4">JLPT N4</option>
+          <option value="3">JLPT N3</option>
+          <option value="2">JLPT N2</option>
+          <option value="1">JLPT N1</option>
+        </select>
+      </div>
+      <div class="dc-body" style="padding:0">
+        <div class="token-table-wrap" style="border:none;border-radius:0">
+          <table>
+            <thead><tr><th>漢字</th><th>ひらがな</th><th>ローマ字</th><th>JLPT</th><th>品詞</th><th>Ruby HTML</th></tr></thead>
+            <tbody id="dict-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ API TAB ══════════════════════════ -->
+  <div class="page" id="tab-api">
+
+    <div class="pipeline">
+      <div class="pipe-step">
+        <div class="ps-num">01</div>
+        <div class="ps-name">Request</div>
+        <div class="ps-desc">HTML response from upstream</div>
+      </div>
+      <div class="pipe-step">
+        <div class="ps-num">02</div>
+        <div class="ps-name">Capture</div>
+        <div class="ps-desc">Buffer &amp; detect content-type</div>
+      </div>
+      <div class="pipe-step">
+        <div class="ps-num">03</div>
+        <div class="ps-name">Parse</div>
+        <div class="ps-desc">Walk HTML DOM tree</div>
+      </div>
+      <div class="pipe-step">
+        <div class="ps-num">04</div>
+        <div class="ps-name">Annotate</div>
+        <div class="ps-desc">Longest-match kanji scan</div>
+      </div>
+      <div class="pipe-step">
+        <div class="ps-num">05</div>
+        <div class="ps-name">Inject</div>
+        <div class="ps-desc">Insert &lt;ruby&gt; nodes</div>
+      </div>
+      <div class="pipe-step">
+        <div class="ps-num">06</div>
+        <div class="ps-name">Render</div>
+        <div class="ps-desc">Write annotated HTML</div>
+      </div>
+    </div>
+
+    <div class="code-panel">
+      <div class="code-tabs">
+        <div class="code-tab active" onclick="showCode('usage',this)">使い方</div>
+        <div class="code-tab" onclick="showCode('api-text',this)">テキスト注釈</div>
+        <div class="code-tab" onclick="showCode('api-html',this)">HTML注入</div>
+        <div class="code-tab" onclick="showCode('api-lookup',this)">単語検索</div>
+        <div class="code-tab" onclick="showCode('api-mecab',this)">MeCab統合</div>
+      </div>
+      <div class="code-body">
+        <pre id="code-display"></pre>
+      </div>
+    </div>
+
+    <!-- Live API tester -->
+    <div class="demo-card">
+      <div class="dc-header">
+        <div class="dc-title">APIテスター / Live Tester</div>
+      </div>
+      <div class="dc-body">
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <select class="ctrl-select" id="api-endpoint">
+            <option value="annotate-text">POST /api/v1/annotate (text)</option>
+            <option value="annotate-html">POST /api/v1/annotate (html)</option>
+            <option value="lookup">GET /api/v1/lookup</option>
+            <option value="stats">GET /api/v1/stats</option>
+          </select>
+          <button class="ctrl-btn primary" onclick="runAPITest()">実行</button>
+        </div>
+        <div id="api-test-input" style="margin-bottom:10px">
+          <textarea class="input-area" id="api-input" style="height:70px;font-family:var(--mono);font-size:12px">{"text": "東京都は日本の首都です"}</textarea>
+        </div>
+        <div style="background:#1e1c18;border-radius:4px;padding:14px 16px">
+          <pre id="api-response" style="font-size:11px;color:#d4cfbe;min-height:40px;max-height:280px;overflow-y:auto;white-space:pre-wrap">// レスポンスがここに表示されます</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════ ARCH TAB ══════════════════════════ -->
+  <div class="page" id="tab-arch">
+
+    <div class="arch-diagram" id="arch-diag"></div>
+
+    <!-- Interface design breakdown -->
+    <div class="demo-card">
+      <div class="dc-header">
+        <div class="dc-title">インターフェース設計 / Interface Design</div>
+      </div>
+      <div class="dc-body" style="padding:0">
+        <div class="token-table-wrap" style="border:none;border-radius:0">
+          <table>
+            <thead><tr><th>コンポーネント</th><th>役割</th><th>実装</th><th>CGO</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="mono">Annotator</td>
+                <td>形態素解析インターフェース</td>
+                <td>interface{ Annotate(string) ([]Token, error) }</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td class="mono">DictAnnotator</td>
+                <td>組み込み辞書バックエンド</td>
+                <td>3,000語 greedy longest-match trie scan</td>
+                <td style="color:var(--green)">不要</td>
+              </tr>
+              <tr>
+                <td class="mono">MeCabAnnotator</td>
+                <td>MeCab IPC アダプター</td>
+                <td>subprocess stdin/stdout + IPAdic parser</td>
+                <td style="color:var(--red)">オプション</td>
+              </tr>
+              <tr>
+                <td class="mono">Middleware</td>
+                <td>HTTP レスポンス変換</td>
+                <td>responseCapture → DOM walk → ruby inject</td>
+                <td style="color:var(--green)">不要</td>
+              </tr>
+              <tr>
+                <td class="mono">InjectFurigana</td>
+                <td>HTML変換関数 (スタンドアロン)</td>
+                <td>golang.org/x/net/html parser + tree mutator</td>
+                <td style="color:var(--green)">不要</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-card">
+      <div class="dc-header">
+        <div class="dc-title">スキップルール / Skip Rules</div>
+      </div>
+      <div class="dc-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">スキップされるタグ</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px" id="skip-tags-display"></div>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">スキップ方法</div>
+            <div style="font-size:12px;color:var(--ink2);line-height:1.9">
+              <div>• <code style="font-family:var(--mono);background:var(--paper2);padding:1px 5px;border-radius:2px">class="no-furigana"</code> — 要素をスキップ</div>
+              <div>• <code style="font-family:var(--mono);background:var(--paper2);padding:1px 5px;border-radius:2px">data-furigana="skip"</code> — 属性でスキップ</div>
+              <div>• <code style="font-family:var(--mono);background:var(--paper2);padding:1px 5px;border-radius:2px">&lt;ruby&gt;</code> タグ内はスキップ（冪等性）</div>
+              <div>• <code style="font-family:var(--mono);background:var(--paper2);padding:1px 5px;border-radius:2px">&lt;code&gt;, &lt;pre&gt;</code> — コードブロック除外</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div><!-- /content -->
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ═══════════════════════════════════════
+// EMBEDDED DICTIONARY (subset for demo)
+// ═══════════════════════════════════════
+
+const DICT = {
+  "日本":{"r":"にほん","jlpt":5,"pos":"名詞"},
+  "東京":{"r":"とうきょう","jlpt":5,"pos":"名詞"},
+  "大阪":{"r":"おおさか","jlpt":4,"pos":"名詞"},
+  "京都":{"r":"きょうと","jlpt":4,"pos":"名詞"},
+  "首都":{"r":"しゅと","jlpt":3,"pos":"名詞"},
+  "東京都":{"r":"とうきょうと","jlpt":3,"pos":"名詞"},
+  "大阪府":{"r":"おおさかふ","jlpt":3,"pos":"名詞"},
+  "学習":{"r":"がくしゅう","jlpt":3,"pos":"名詞"},
+  "難しい":{"r":"むずかしい","jlpt":4,"pos":"形容詞"},
+  "漢字":{"r":"かんじ","jlpt":3,"pos":"名詞"},
+  "覚える":{"r":"おぼえる","jlpt":4,"pos":"動詞"},
+  "読解力":{"r":"どっかいりょく","jlpt":2,"pos":"名詞"},
+  "読解":{"r":"どっかい","jlpt":2,"pos":"名詞"},
+  "向上":{"r":"こうじょう","jlpt":3,"pos":"名詞"},
+  "記者会見":{"r":"きしゃかいけん","jlpt":2,"pos":"名詞"},
+  "都知事":{"r":"とちじ","jlpt":2,"pos":"名詞"},
+  "防災":{"r":"ぼうさい","jlpt":3,"pos":"名詞"},
+  "強化":{"r":"きょうか","jlpt":3,"pos":"名詞"},
+  "地震":{"r":"じしん","jlpt":3,"pos":"名詞"},
+  "訓練":{"r":"くんれん","jlpt":3,"pos":"名詞"},
+  "内閣府":{"r":"ないかくふ","jlpt":2,"pos":"名詞"},
+  "全国":{"r":"ぜんこく","jlpt":3,"pos":"名詞"},
+  "吾輩":{"r":"わがはい","jlpt":2,"pos":"名詞"},
+  "猫":{"r":"ねこ","jlpt":5,"pos":"名詞"},
+  "記憶":{"r":"きおく","jlpt":3,"pos":"名詞"},
+  "技術":{"r":"ぎじゅつ","jlpt":3,"pos":"名詞"},
+  "自動":{"r":"じどう","jlpt":3,"pos":"名詞"},
+  "処理":{"r":"しょり","jlpt":2,"pos":"名詞"},
+  "実装":{"r":"じっそう","jlpt":2,"pos":"名詞"},
+  "開発":{"r":"かいはつ","jlpt":3,"pos":"名詞"},
+  "対応":{"r":"たいおう","jlpt":3,"pos":"名詞"},
+  "標準":{"r":"ひょうじゅん","jlpt":3,"pos":"名詞"},
+  "学校":{"r":"がっこう","jlpt":5,"pos":"名詞"},
+  "先生":{"r":"せんせい","jlpt":5,"pos":"名詞"},
+  "日本語":{"r":"にほんご","jlpt":5,"pos":"名詞"},
+  "言葉":{"r":"ことば","jlpt":4,"pos":"名詞"},
+  "世界":{"r":"せかい","jlpt":4,"pos":"名詞"},
+  "自然":{"r":"しぜん","jlpt":3,"pos":"名詞"},
+  "発表":{"r":"はっぴょう","jlpt":3,"pos":"名詞"},
+  "電車":{"r":"でんしゃ","jlpt":5,"pos":"名詞"},
+  "飛行機":{"r":"ひこうき","jlpt":5,"pos":"名詞"},
+  "東":{"r":"ひがし","jlpt":5,"pos":"名詞"},
+  "西":{"r":"にし","jlpt":5,"pos":"名詞"},
+  "南":{"r":"みなみ","jlpt":5,"pos":"名詞"},
+  "北":{"r":"きた","jlpt":5,"pos":"名詞"},
+  "山":{"r":"やま","jlpt":5,"pos":"名詞"},
+  "川":{"r":"かわ","jlpt":5,"pos":"名詞"},
+  "海":{"r":"うみ","jlpt":5,"pos":"名詞"},
+  "空":{"r":"そら","jlpt":5,"pos":"名詞"},
+  "花":{"r":"はな","jlpt":5,"pos":"名詞"},
+  "春":{"r":"はる","jlpt":5,"pos":"名詞"},
+  "夏":{"r":"なつ","jlpt":5,"pos":"名詞"},
+  "秋":{"r":"あき","jlpt":5,"pos":"名詞"},
+  "冬":{"r":"ふゆ","jlpt":5,"pos":"名詞"},
+  "人":{"r":"ひと","jlpt":5,"pos":"名詞"},
+  "子ども":{"r":"こども","jlpt":5,"pos":"名詞"},
+  "子供":{"r":"こども","jlpt":5,"pos":"名詞"},
+  "友達":{"r":"ともだち","jlpt":5,"pos":"名詞"},
+  "家族":{"r":"かぞく","jlpt":4,"pos":"名詞"},
+  "食べる":{"r":"たべる","jlpt":5,"pos":"動詞"},
+  "飲む":{"r":"のむ","jlpt":5,"pos":"動詞"},
+  "行く":{"r":"いく","jlpt":5,"pos":"動詞"},
+  "来る":{"r":"くる","jlpt":5,"pos":"動詞"},
+  "見る":{"r":"みる","jlpt":5,"pos":"動詞"},
+  "聞く":{"r":"きく","jlpt":5,"pos":"動詞"},
+  "話す":{"r":"はなす","jlpt":5,"pos":"動詞"},
+  "書く":{"r":"かく","jlpt":5,"pos":"動詞"},
+  "読む":{"r":"よむ","jlpt":5,"pos":"動詞"},
+  "社会":{"r":"しゃかい","jlpt":4,"pos":"名詞"},
+  "経済":{"r":"けいざい","jlpt":3,"pos":"名詞"},
+  "政治":{"r":"せいじ","jlpt":3,"pos":"名詞"},
+  "文化":{"r":"ぶんか","jlpt":4,"pos":"名詞"},
+  "音楽":{"r":"おんがく","jlpt":5,"pos":"名詞"},
+  "映画":{"r":"えいが","jlpt":5,"pos":"名詞"},
+  "写真":{"r":"しゃしん","jlpt":5,"pos":"名詞"},
+  "時間":{"r":"じかん","jlpt":5,"pos":"名詞"},
+  "仕事":{"r":"しごと","jlpt":4,"pos":"名詞"},
+  "会社":{"r":"かいしゃ","jlpt":4,"pos":"名詞"},
+};
+
+const ROMAJI = {
+  "あ":"a","い":"i","う":"u","え":"e","お":"o",
+  "か":"ka","き":"ki","く":"ku","け":"ke","こ":"ko","が":"ga","ぎ":"gi","ぐ":"gu","げ":"ge","ご":"go",
+  "さ":"sa","し":"shi","す":"su","せ":"se","そ":"so","ざ":"za","じ":"ji","ず":"zu","ぜ":"ze","ぞ":"zo",
+  "た":"ta","ち":"chi","つ":"tsu","て":"te","と":"to","だ":"da","で":"de","ど":"do",
+  "な":"na","に":"ni","ぬ":"nu","ね":"ne","の":"no",
+  "は":"ha","ひ":"hi","ふ":"fu","へ":"he","ほ":"ho","ば":"ba","び":"bi","ぶ":"bu","べ":"be","ぼ":"bo","ぱ":"pa","ぴ":"pi","ぷ":"pu","ぺ":"pe","ぽ":"po",
+  "ま":"ma","み":"mi","む":"mu","め":"me","も":"mo",
+  "や":"ya","ゆ":"yu","よ":"yo",
+  "ら":"ra","り":"ri","る":"ru","れ":"re","ろ":"ro",
+  "わ":"wa","を":"wo","ん":"n",
+  "きゃ":"kya","きゅ":"kyu","きょ":"kyo","しゃ":"sha","しゅ":"shu","しょ":"sho",
+  "ちゃ":"cha","ちゅ":"chu","ちょ":"cho","にゃ":"nya","にゅ":"nyu","にょ":"nyo",
+  "ひゃ":"hya","ひょ":"hyo","みゃ":"mya","みょ":"myo","りゃ":"rya","りゅ":"ryu","りょ":"ryo",
+  "ぎゃ":"gya","ぎゅ":"gyu","ぎょ":"gyo","じゃ":"ja","じゅ":"ju","じょ":"jo",
+  "びゃ":"bya","びょ":"byo","ぴゃ":"pya","ぴょ":"pyo","っ":"tt","ー":"-",
+};
+
+function toRomaji(h) {
+  let r='', i=0, runes=[...h];
+  while(i<runes.length){
+    if(i+1<runes.length){const two=runes[i]+runes[i+1];if(ROMAJI[two]){r+=ROMAJI[two];i+=2;continue}}
+    r+=ROMAJI[runes[i]]||runes[i];i++;
+  }
+  return r;
+}
+
+function toKatakana(h) {
+  return [...h].map(c=>{const code=c.codePointAt(0);return(code>=0x3041&&code<=0x3096)?String.fromCodePoint(code+0x60):c}).join('');
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+// Annotate text using embedded dictionary (longest-match)
+function annotate(text, mode='hiragana', levelFilter='all') {
+  const runes=[...text];
+  const tokens=[];
+  let i=0;
+  while(i<runes.length){
+    if(!isKanjiChar(runes[i])){
+      // collect non-kanji run
+      let j=i+1;
+      while(j<runes.length&&!isKanjiChar(runes[j]))j++;
+      tokens.push({surface:runes.slice(i,j).join(''),reading:'',isKanji:false});
+      i=j; continue;
+    }
+    // greedy longest match 8→1
+    let matched=false;
+    for(let len=Math.min(8,runes.length-i);len>=1;len--){
+      const word=runes.slice(i,i+len).join('');
+      if(DICT[word]){
+        const e=DICT[word];
+        if(passesLevel(e.jlpt, levelFilter)){
+          tokens.push({surface:word,reading:e.r,jlpt:e.jlpt,pos:e.pos,isKanji:true});
+        } else {
+          tokens.push({surface:word,reading:'',isKanji:true,jlpt:e.jlpt,pos:e.pos});
+        }
+        i+=len; matched=true; break;
+      }
+    }
+    if(!matched){tokens.push({surface:runes[i],reading:'',isKanji:true});i++;}
+  }
+  return tokens;
+}
+
+function passesLevel(jlpt, filter) {
+  if(filter==='all')return true;
+  if(filter==='jlpt_n5')return jlpt===5;
+  if(filter==='jlpt_n4')return jlpt>=4;
+  if(filter==='jlpt_n3')return jlpt>=3;
+  if(filter==='advanced')return jlpt>0&&jlpt<=2;
+  return true;
+}
+
+function isKanjiChar(c){const cp=c.codePointAt(0);return(cp>=0x4E00&&cp<=0x9FFF)||(cp>=0x3400&&cp<=0x4DBF)}
+
+function getReading(hiragana, mode) {
+  if(mode==='katakana') return toKatakana(hiragana);
+  if(mode==='romaji')   return toRomaji(hiragana);
+  return hiragana;
+}
+
+function tokensToRuby(tokens, mode='hiragana') {
+  return tokens.map(t=>{
+    if(!t.isKanji||!t.reading) return esc(t.surface);
+    const r=getReading(t.reading, mode);
+    return `<ruby><rb>${esc(t.surface)}</rb><rt>${esc(r)}</rt></ruby>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+// SAMPLES
+// ═══════════════════════════════════════
+
+const SAMPLES = {
+  n5basic:     {label:'N5 基礎', preview:'今日は学校に行きます。', text:'今日は学校に行きます。先生が来ました。山と川が見えます。'},
+  news:        {label:'ニュース', preview:'東京都知事は記者会見で…', text:'東京都知事は記者会見で、首都直下型地震への防災訓練の強化を発表した。内閣府は全国的な対応を検討している。'},
+  soseki:      {label:'吾輩は猫', preview:'吾輩は猫である。名前はまだ…', text:'吾輩は猫である。名前はまだ無い。どこで生れたかとんと見当がつかぬ。何でも薄暗いじめじめした所でニャーニャー泣いていた事だけは記憶している。'},
+  tech:        {label:'技術文書', preview:'自然言語処理の実装には…', text:'自然言語処理の実装には形態素解析が必要です。Go言語による開発では標準ライブラリを活用した効率的な処理が可能です。'},
+  geography:   {label:'地理', preview:'東京、大阪、京都は日本を…', text:'東京、大阪、京都は日本を代表する都市です。東京都は日本の首都で、人口は約一千四百万人です。'},
+};
+
+const READER_SAMPLES = {
+  news: {
+    title: 'ニュース記事',
+    content: `<h2>東京都知事、<ruby><rb>防災</rb><rt>ぼうさい</rt></ruby><ruby><rb>訓練</rb><rt>くんれん</rt></ruby>の<ruby><rb>強化</rb><rt>きょうか</rt></ruby>を<ruby><rb>発表</rb><rt>はっぴょう</rt></ruby></h2>
+<p><ruby><rb>東京都</rb><rt>とうきょうと</rt></ruby><ruby><rb>知事</rb><rt>ちじ</rt></ruby>は<ruby><rb>記者会見</rb><rt>きしゃかいけん</rt></ruby>で、<ruby><rb>首都</rb><rt>しゅと</rt></ruby><ruby><rb>直下</rb><rt>ちょっか</rt></ruby><ruby><rb>型</rb><rt>がた</rt></ruby><ruby><rb>地震</rb><rt>じしん</rt></ruby>への<ruby><rb>備</rb><rt>そな</rt></ruby>えを<ruby><rb>強化</rb><rt>きょうか</rt></ruby>すると<ruby><rb>発表</rb><rt>はっぴょう</rt></ruby>した。</p>
+<p><ruby><rb>内閣府</rb><rt>ないかくふ</rt></ruby>は<ruby><rb>全国</rb><rt>ぜんこく</rt></ruby><ruby><rb>的</rb><rt>てき</rt></ruby>な<ruby><rb>防災</rb><rt>ぼうさい</rt></ruby><ruby><rb>訓練</rb><rt>くんれん</rt></ruby>の<ruby><rb>実施</rb><rt>じっし</rt></ruby>を<ruby><rb>検討</rb><rt>けんとう</rt></ruby>している。<ruby><rb>専門家</rb><rt>せんもんか</rt></ruby>は「<ruby><rb>市民</rb><rt>しみん</rt></ruby><ruby><rb>一人一人</rb><rt>ひとりひとり</rt></ruby>の<ruby><rb>意識</rb><rt>いしき</rt></ruby>が<ruby><rb>重要</rb><rt>じゅうよう</rt></ruby>」と<ruby><rb>語</rb><rt>かた</rt></ruby>った。</p>`
+  },
+  soseki: {
+    title: '夏目漱石「吾輩は猫である」（冒頭）',
+    content: `<h2><ruby><rb>吾輩</rb><rt>わがはい</rt></ruby>は<ruby><rb>猫</rb><rt>ねこ</rt></ruby>である</h2>
+<p><ruby><rb>吾輩</rb><rt>わがはい</rt></ruby>は<ruby><rb>猫</rb><rt>ねこ</rt></ruby>である。<ruby><rb>名前</rb><rt>なまえ</rt></ruby>はまだ<ruby><rb>無</rb><rt>な</rt></ruby>い。</p>
+<p>どこで<ruby><rb>生</rb><rt>う</rt></ruby>まれたかとんと<ruby><rb>見当</rb><rt>けんとう</rt></ruby>がつかぬ。<ruby><rb>何</rb><rt>なん</rt></ruby>でも<ruby><rb>薄暗</rb><rt>うすぐら</rt></ruby>いじめじめした<ruby><rb>所</rb><rt>ところ</rt></ruby>でニャーニャー<ruby><rb>泣</rb><rt>な</rt></ruby>いていた<ruby><rb>事</rb><rt>こと</rt></ruby>だけは<ruby><rb>記憶</rb><rt>きおく</rt></ruby>している。</p>
+<p><ruby><rb>吾輩</rb><rt>わがはい</rt></ruby>はここで<ruby><rb>始</rb><rt>はじ</rt></ruby>めて<ruby><rb>人間</rb><rt>にんげん</rt></ruby>というものを<ruby><rb>見</rb><rt>み</rt></ruby>た。しかもあとで<ruby><rb>聞</rb><rt>き</rt></ruby>くとそれは<ruby><rb>書生</rb><rt>しょせい</rt></ruby>という<ruby><rb>人間</rb><rt>にんげん</rt></ruby>中で<ruby><rb>一番</rb><rt>いちばん</rt></ruby><ruby><rb>獰悪</rb><rt>どうあく</rt></ruby>な<ruby><rb>種族</rb><rt>しゅぞく</rt></ruby>であったそうだ。</p>`
+  },
+  tech: {
+    title: 'Go言語 技術文書',
+    content: `<h2><ruby><rb>自然言語処理</rb><rt>しぜんげんごしょり</rt></ruby>ミドルウェアの<ruby><rb>実装</rb><rt>じっそう</rt></ruby></h2>
+<p>このミドルウェアはGo<ruby><rb>標準</rb><rt>ひょうじゅん</rt></ruby>ライブラリのみを<ruby><rb>使用</rb><rt>しよう</rt></ruby>し、CGO<ruby><rb>不要</rb><rt>ふよう</rt></ruby>で<ruby><rb>動作</rb><rt>どうさ</rt></ruby>します。<ruby><rb>形態素解析</rb><rt>けいたいそかいせき</rt></ruby>には<ruby><rb>組</rb><rt>く</rt></ruby>み<ruby><rb>込</rb><rt>こ</rt></ruby>み<ruby><rb>辞書</rb><rt>じしょ</rt></ruby>を<ruby><rb>使用</rb><rt>しよう</rt></ruby>します。</p>
+<p><ruby><rb>実際</rb><rt>じっさい</rt></ruby>の<ruby><rb>本番</rb><rt>ほんばん</rt></ruby><ruby><rb>環境</rb><rt>かんきょう</rt></ruby>では、MeCab<ruby><rb>連携</rb><rt>れんけい</rt></ruby>により<ruby><rb>高精度</rb><rt>こうせいど</rt></ruby>な<ruby><rb>読</rb><rt>よ</rt></ruby>みの<ruby><rb>取得</rb><rt>しゅとく</rt></ruby>が<ruby><rb>可能</rb><rt>かのう</rt></ruby>です。<span class="no-furigana">（このspanはno-furiganaクラスによりスキップされます）</span></p>`
+  },
+  children: {
+    title: '子ども向けテキスト',
+    content: `<h2><ruby><rb>春</rb><rt>はる</rt></ruby>の<ruby><rb>花</rb><rt>はな</rt></ruby></h2>
+<p><ruby><rb>春</rb><rt>はる</rt></ruby>になると、<ruby><rb>山</rb><rt>やま</rt></ruby>や<ruby><rb>川</rb><rt>かわ</rt></ruby>のそばに<ruby><rb>花</rb><rt>はな</rt></ruby>が<ruby><rb>咲</rb><rt>さ</rt></ruby>きます。</p>
+<p><ruby><rb>子</rb><rt>こ</rt></ruby>どもたちは<ruby><rb>学校</rb><rt>がっこう</rt></ruby>から<ruby><rb>帰</rb><rt>かえ</rt></ruby>ると、<ruby><rb>友達</rb><rt>ともだち</rt></ruby>といっしょに<ruby><rb>公園</rb><rt>こうえん</rt></ruby>で<ruby><rb>遊</rb><rt>あそ</rt></ruby>びます。<ruby><rb>空</rb><rt>そら</rt></ruby>はとても<ruby><rb>青</rb><rt>あお</rt></ruby>くて、<ruby><rb>風</rb><rt>かぜ</rt></ruby>が<ruby><rb>気持</rb><rt>きも</rt></ruby>ちいいです。</p>`
+  }
+};
+
+// ═══════════════════════════════════════
+// CODE SNIPPETS
+// ═══════════════════════════════════════
+
+const CODE_SNIPPETS = {
+  usage: `<span class="cmt">// ── Basic middleware usage ──────────────────────────────</span>
+
+<span class="kw">package</span> main
+
+<span class="kw">import</span> (
+    <span class="str">"net/http"</span>
+    <span class="str">"github.com/yourname/furigana"</span>
+)
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+    <span class="cmt">// Create middleware with options</span>
+    mw := furigana.<span class="fn">New</span>(furigana.Options{
+        Mode:  furigana.ModeHiragana,  <span class="cmt">// or ModeKatakana, ModeRomaji</span>
+        Level: furigana.LevelAll,       <span class="cmt">// or LevelJLPTN5, LevelAdvanced …</span>
+        Debug: <span class="kw">true</span>,                   <span class="cmt">// log per-request stats</span>
+    })
+
+    <span class="cmt">// Wrap any http.Handler</span>
+    http.<span class="fn">Handle</span>(<span class="str">"/"</span>, mw.<span class="fn">Wrap</span>(myHandler))
+    http.<span class="fn">ListenAndServe</span>(<span class="str">":8086"</span>, <span class="kw">nil</span>)
+}
+
+<span class="cmt">// Response headers automatically added:</span>
+<span class="cmt">// X-Furigana-Injected: 12</span>
+<span class="cmt">// X-Furigana-Skipped:  2</span>
+<span class="cmt">// X-Furigana-Backend:  built-in-dict</span>`,
+
+  'api-text': `<span class="cmt">// ── POST /api/v1/annotate — text tokenization ───────────</span>
+
+<span class="cmt">// Request:</span>
+curl -X POST http://localhost:8086/api/v1/annotate \\
+  -H <span class="str">'Content-Type: application/json'</span> \\
+  -d <span class="str">'{"text":"東京都は日本の首都です","mode":"hiragana"}'</span>
+
+<span class="cmt">// Response:</span>
+{
+  <span class="str">"input"</span>: <span class="str">"東京都は日本の首都です"</span>,
+  <span class="str">"backend"</span>: <span class="str">"built-in-dict"</span>,
+  <span class="str">"tokens"</span>: [
+    { <span class="str">"surface"</span>: <span class="str">"東京都"</span>, <span class="str">"reading"</span>: <span class="str">"とうきょうと"</span>,
+      <span class="str">"romaji"</span>: <span class="str">"toukyouto"</span>, <span class="str">"is_kanji"</span>: <span class="kw">true</span> },
+    { <span class="str">"surface"</span>: <span class="str">"は"</span>,  <span class="str">"reading"</span>: <span class="str">""</span>, <span class="str">"is_kanji"</span>: <span class="kw">false</span> },
+    { <span class="str">"surface"</span>: <span class="str">"日本"</span>, <span class="str">"reading"</span>: <span class="str">"にほん"</span>,
+      <span class="str">"romaji"</span>: <span class="str">"nihon"</span>,   <span class="str">"is_kanji"</span>: <span class="kw">true</span> },
+    { <span class="str">"surface"</span>: <span class="str">"の"</span>,  <span class="str">"reading"</span>: <span class="str">""</span>, <span class="str">"is_kanji"</span>: <span class="kw">false</span> },
+    { <span class="str">"surface"</span>: <span class="str">"首都"</span>, <span class="str">"reading"</span>: <span class="str">"しゅと"</span>,
+      <span class="str">"romaji"</span>: <span class="str">"shuto"</span>,   <span class="str">"is_kanji"</span>: <span class="kw">true</span> },
+    ...
+  ]
+}`,
+
+  'api-html': `<span class="cmt">// ── POST /api/v1/annotate — HTML injection ──────────────</span>
+
+<span class="cmt">// Request:</span>
+curl -X POST http://localhost:8086/api/v1/annotate \\
+  -H <span class="str">'Content-Type: application/json'</span> \\
+  -d <span class="str">'{"html":"&lt;p&gt;東京は日本の首都です&lt;/p&gt;"}'</span>
+
+<span class="cmt">// Response:</span>
+{
+  <span class="str">"html"</span>: <span class="str">"&lt;p&gt;&lt;ruby&gt;&lt;rb&gt;東京&lt;/rb&gt;&lt;rt&gt;とうきょう&lt;/rt&gt;&lt;/ruby&gt;は...&lt;/p&gt;"</span>,
+  <span class="str">"injected"</span>: <span class="num">3</span>,
+  <span class="str">"skipped"</span>:  <span class="num">0</span>,
+  <span class="str">"tokens"</span>:   <span class="num">8</span>,
+  <span class="str">"backend"</span>:  <span class="str">"built-in-dict"</span>
+}
+
+<span class="cmt">// Raw HTML body also accepted:</span>
+curl -X POST http://localhost:8086/api/v1/annotate \\
+  -H <span class="str">'Content-Type: text/html'</span> \\
+  --data-binary @page.html`,
+
+  'api-lookup': `<span class="cmt">// ── GET /api/v1/lookup — word lookup ────────────────────</span>
+
+curl <span class="str">'http://localhost:8086/api/v1/lookup?word=東京'</span>
+
+{
+  <span class="str">"word"</span>:       <span class="str">"東京"</span>,
+  <span class="str">"found"</span>:      <span class="kw">true</span>,
+  <span class="str">"reading"</span>:    <span class="str">"とうきょう"</span>,
+  <span class="str">"katakana"</span>:   <span class="str">"トウキョウ"</span>,
+  <span class="str">"romaji"</span>:     <span class="str">"toukyou"</span>,
+  <span class="str">"jlpt_level"</span>: <span class="num">5</span>,
+  <span class="str">"pos"</span>:        <span class="str">"名詞"</span>,
+  <span class="str">"ruby_html"</span>:  <span class="str">"&lt;ruby&gt;&lt;rb&gt;東京&lt;/rb&gt;&lt;rt&gt;とうきょう&lt;/rt&gt;&lt;/ruby&gt;"</span>
+}
+
+<span class="cmt">// Not found → character-by-character fallback:</span>
+curl <span class="str">'http://localhost:8086/api/v1/lookup?word=難解'</span>
+{
+  <span class="str">"word"</span>: <span class="str">"難解"</span>, <span class="str">"found"</span>: <span class="kw">false</span>,
+  <span class="str">"characters"</span>: [
+    { <span class="str">"kanji"</span>: <span class="str">"難"</span>, <span class="str">"reading"</span>: <span class="str">"むずか"</span>, <span class="str">"jlpt_level"</span>: <span class="num">3</span> },
+    { <span class="str">"kanji"</span>: <span class="str">"解"</span>, <span class="str">"reading"</span>: <span class="kw">null</span> }
+  ]
+}`,
+
+  'api-mecab': `<span class="cmt">// ── MeCab adapter — plug in for production ──────────────</span>
+
+<span class="cmt">// The Annotator interface makes swapping backends trivial:</span>
+<span class="kw">type</span> <span class="tp">Annotator</span> <span class="kw">interface</span> {
+    Annotate(text <span class="tp">string</span>) ([]<span class="tp">Token</span>, error)
+    Name() <span class="tp">string</span>
+}
+
+<span class="cmt">// MeCab via subprocess IPC (no CGO):</span>
+<span class="kw">type</span> <span class="tp">MeCabAnnotator</span> <span class="kw">struct</span> { dicdir <span class="tp">string</span> }
+
+<span class="kw">func</span> (m *<span class="tp">MeCabAnnotator</span>) <span class="fn">Annotate</span>(text <span class="tp">string</span>) ([]<span class="tp">Token</span>, error) {
+    cmd := exec.<span class="fn">Command</span>(<span class="str">"mecab"</span>, <span class="str">"-d"</span>, m.dicdir, <span class="str">"-O"</span>, <span class="str">"chasen"</span>)
+    cmd.Stdin = strings.<span class="fn">NewReader</span>(text)
+    out, err := cmd.<span class="fn">Output</span>()
+    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> <span class="kw">nil</span>, err }
+    <span class="kw">return</span> <span class="fn">ParseMeCabOutput</span>(<span class="tp">string</span>(out)), <span class="kw">nil</span>
+}
+
+<span class="cmt">// Plug it into the middleware:</span>
+mw := furigana.<span class="fn">New</span>(furigana.Options{
+    Annotator: &<span class="tp">MeCabAnnotator</span>{dicdir: <span class="str">"/usr/lib/mecab/dic/mecab-ipadic-neologd"</span>},
+})`
+};
+
+// ═══════════════════════════════════════
+// STATE & DEBOUNCE
+// ═══════════════════════════════════════
+
+let annotateTimer = null;
+function debounceAnnotate() {
+  clearTimeout(annotateTimer);
+  annotateTimer = setTimeout(runAnnotate, 350);
+}
+
+let lookupTimer = null;
+function debounceeLookup() {
+  clearTimeout(lookupTimer);
+  lookupTimer = setTimeout(runLookup, 300);
+}
+
+let currentCode = 'usage';
+let readerFurigana = true;
+let currentSample = 'news';
+
+// ═══════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════
+
+function showTab(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.hn').forEach(h => h.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  const labels = {demo:'デモ', reader:'読み物', lookup:'単語検索', api:'API', arch:'設計'};
+  document.querySelectorAll('.hn').forEach(h => {
+    if (h.textContent.trim() === (labels[name] || '')) h.classList.add('active');
+  });
+  if (name === 'lookup') renderDictBrowse();
+  if (name === 'arch') renderArch();
+  if (name === 'api') showCode(currentCode);
+}
+
+// ═══════════════════════════════════════
+// ANNOTATION ENGINE (pure JS)
+// ═══════════════════════════════════════
+
+function runAnnotate() {
+  const text = document.getElementById('input-text').value;
+  const mode = document.getElementById('mode-sel').value;
+  const level = document.getElementById('level-sel').value;
+
+  if (!text.trim()) {
+    document.getElementById('result-area').innerHTML = '';
+    document.getElementById('result-stats').innerHTML = '';
+    return;
+  }
+
+  const tokens = annotate(text, mode, level);
+  const html = tokensToRuby(tokens, mode);
+  document.getElementById('result-area').innerHTML = html;
+
+  const annotated = tokens.filter(t => t.isKanji && t.reading).length;
+  const skipped = tokens.filter(t => t.isKanji && !t.reading).length;
+  const total = tokens.length;
+
+  document.getElementById('result-stats').innerHTML = `
+    <div class="stat-pill"><div class="stat-dot" style="background:var(--red)"></div>${annotated} 注釈</div>
+    <div class="stat-pill"><div class="stat-dot" style="background:var(--gold)"></div>${skipped} 未対応</div>
+    <div class="stat-pill"><div class="stat-dot" style="background:var(--border2)"></div>${total} トークン</div>
+    <div class="stat-pill" style="cursor:pointer;text-decoration:underline;color:var(--blue)" onclick="showTokenTable(${JSON.stringify(JSON.stringify(tokens))})">詳細表示</div>
+  `;
+}
+
+function showTokenTable(tokensJSON) {
+  const tokens = JSON.parse(tokensJSON);
+  const card = document.getElementById('token-card');
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  document.getElementById('token-tbody').innerHTML = tokens
+    .filter(t => t.surface.trim())
+    .map(t => {
+      const katakana = t.reading ? toKatakana(t.reading) : '';
+      const romaji = t.reading ? toRomaji(t.reading) : '';
+      const preview = t.reading
+        ? `<ruby><rb>${esc(t.surface)}</rb><rt>${esc(t.reading)}</rt></ruby>`
+        : esc(t.surface);
+      const jlptBadge = t.jlpt
+        ? `<span class="jlpt-badge jlpt-${t.jlpt}" style="font-size:8px;padding:1px 5px">N${t.jlpt}</span>`
+        : '';
+      return `<tr>
+        <td style="font-family:var(--serif);font-size:1.1rem">${esc(t.surface)}</td>
+        <td class="mono" style="color:var(--red)">${esc(t.reading || '—')}</td>
+        <td class="mono">${esc(katakana || '—')}</td>
+        <td class="mono" style="color:var(--blue)">${esc(romaji || '—')}</td>
+        <td style="font-size:11px;color:var(--ink3)">${esc(t.pos || (t.isKanji ? '?' : '—'))}</td>
+        <td class="ruby-preview">${preview} ${jlptBadge}</td>
+      </tr>`;
+    }).join('');
+}
+
+// ═══════════════════════════════════════
+// SAMPLE GRID
+// ═══════════════════════════════════════
+
+function renderSampleGrid() {
+  document.getElementById('sample-grid').innerHTML = Object.entries(SAMPLES).map(([key, s]) =>
+    `<div class="sample-btn ${key === currentSample ? 'active' : ''}" onclick="loadSample('${key}')">
+      <div class="sb-label">${s.label}</div>
+      <div class="sb-preview">${s.preview}</div>
+    </div>`
+  ).join('');
+}
+
+function loadSample(key) {
+  currentSample = key;
+  document.getElementById('input-text').value = SAMPLES[key].text;
+  renderSampleGrid();
+  runAnnotate();
+}
+
+// ═══════════════════════════════════════
+// READER
+// ═══════════════════════════════════════
+
+function loadReaderSample() {
+  const key = document.getElementById('reader-sample').value;
+  const sample = READER_SAMPLES[key];
+  document.getElementById('reader-content').innerHTML = sample ? sample.content : '';
+}
+
+function toggleReaderFurigana() {
+  readerFurigana = document.getElementById('reader-toggle').checked;
+  const rts = document.querySelectorAll('#reader-content rt');
+  rts.forEach(rt => { rt.style.display = readerFurigana ? '' : 'none'; });
+}
+
+// ═══════════════════════════════════════
+// LOOKUP
+// ═══════════════════════════════════════
+
+const QUICK_WORDS = ['東京','日本語','漢字','学習','難しい','首都','電車','飛行機','音楽','映画'];
+
+function renderQuickWords() {
+  document.getElementById('quick-words').innerHTML = QUICK_WORDS.map(w =>
+    `<span onclick="document.getElementById('lookup-input').value='${w}';runLookup()"
+      style="font-family:var(--serif);font-size:1.05rem;padding:4px 10px;border:1px solid var(--border);
+      border-radius:4px;cursor:pointer;background:var(--paper);color:var(--ink);transition:all .1s"
+      onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--border)'">${w}</span>`
+  ).join('');
+}
+
+function runLookup() {
+  const word = document.getElementById('lookup-input').value.trim();
+  if (!word) return;
+
+  const resultEl = document.getElementById('lookup-result');
+  resultEl.classList.add('visible');
+
+  const entry = DICT[word];
+  if (entry) {
+    const romaji = toRomaji(entry.r);
+    const katakana = toKatakana(entry.r);
+    const jlptBadge = entry.jlpt
+      ? `<div class="jlpt-badge jlpt-${entry.jlpt}">JLPT N${entry.jlpt}</div>`
+      : '';
+    resultEl.innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:24px">
+        <div class="lr-kanji">${esc(word)}</div>
+        <div style="flex:1">
+          <div class="lr-readings">
+            <div class="lr-reading"><div class="lr-script">ひらがな</div><div class="lr-value hiragana">${esc(entry.r)}</div></div>
+            <div class="lr-reading"><div class="lr-script">カタカナ</div><div class="lr-value katakana">${esc(katakana)}</div></div>
+            <div class="lr-reading"><div class="lr-script">Romaji</div><div class="lr-value romaji">${esc(romaji)}</div></div>
+            <div class="lr-reading"><div class="lr-script">品詞</div><div class="lr-value" style="font-size:1rem;color:var(--gold)">${esc(entry.pos)}</div></div>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            ${jlptBadge}
+            <code style="font-family:var(--mono);font-size:11px;background:var(--paper2);padding:3px 8px;border-radius:3px;border:1px solid var(--border)">&lt;ruby&gt;&lt;rb&gt;${esc(word)}&lt;/rb&gt;&lt;rt&gt;${esc(entry.r)}&lt;/rt&gt;&lt;/ruby&gt;</code>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:14px;font-size:1.8rem;font-family:var(--serif);line-height:2.2">
+        <ruby><rb>${esc(word)}</rb><rt style="font-family:var(--sans);font-size:.48em;color:var(--red)">${esc(entry.r)}</rt></ruby>
+      </div>
+    `;
+  } else {
+    // Character-by-character fallback
+    const chars = [...word].filter(c => {const cp=c.codePointAt(0);return(cp>=0x4E00&&cp<=0x9FFF)});
+    const charResults = chars.map(c => {
+      const e = DICT[c];
+      return e
+        ? `<span style="margin-right:14px"><ruby style="font-size:1.4rem;font-family:var(--serif)"><rb>${esc(c)}</rb><rt style="font-family:var(--sans);font-size:.48em;color:var(--red)">${esc(e.r)}</rt></ruby></span>`
+        : `<span style="font-size:1.4rem;font-family:var(--serif);color:var(--ink3)">${esc(c)}(?)</span>`;
+    }).join('');
+    resultEl.innerHTML = `
+      <div style="color:var(--ink3);font-size:12px;margin-bottom:10px">「${esc(word)}」は辞書に見つかりませんでした。文字単位で検索します：</div>
+      <div style="line-height:2.6">${charResults}</div>
+    `;
+  }
+}
+
+// ═══════════════════════════════════════
+// DICT BROWSE
+// ═══════════════════════════════════════
+
+function renderDictBrowse() {
+  const level = parseInt(document.getElementById('dict-level').value);
+  const entries = Object.entries(DICT)
+    .filter(([,e]) => e.jlpt === level)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+
+  document.getElementById('dict-tbody').innerHTML = entries.map(([word, e]) => {
+    const romaji = toRomaji(e.r);
+    return `<tr>
+      <td style="font-family:var(--serif);font-size:1.1rem;cursor:pointer" onclick="document.getElementById('lookup-input').value='${word}';showTab('lookup');runLookup()">${esc(word)}</td>
+      <td class="mono" style="color:var(--red)">${esc(e.r)}</td>
+      <td class="mono" style="color:var(--blue)">${esc(romaji)}</td>
+      <td><span class="jlpt-badge jlpt-${e.jlpt}" style="font-size:8px;padding:1px 5px">N${e.jlpt}</span></td>
+      <td style="font-size:11px;color:var(--ink3)">${esc(e.pos)}</td>
+      <td class="mono" style="font-size:10px;color:var(--ink3)">&lt;ruby&gt;&lt;rb&gt;${esc(word)}&lt;/rb&gt;&lt;rt&gt;${esc(e.r)}&lt;/rt&gt;&lt;/ruby&gt;</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+// CODE PANEL
+// ═══════════════════════════════════════
+
+function showCode(key, btn) {
+  currentCode = key;
+  document.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  else {
+    document.querySelectorAll('.code-tab').forEach(t => {
+      if (t.textContent.trim().includes({
+        usage:'使い方','api-text':'テキスト','api-html':'HTML',
+        'api-lookup':'単語','api-mecab':'MeCab'
+      }[key]||'__')) t.classList.add('active');
+    });
+  }
+  document.getElementById('code-display').innerHTML = CODE_SNIPPETS[key] || '';
+}
+
+// ═══════════════════════════════════════
+// ARCHITECTURE DIAGRAM
+// ═══════════════════════════════════════
+
+function renderArch() {
+  document.getElementById('arch-diag').textContent = `
+  ┌──────────────────────────────────────────────────────────────┐
+  │                  ふりがな注入ミドルウェア                         │
+  │                   Furigana Middleware                        │
+  └──────────────────────────────────────────────────────────────┘
+
+  HTTP Request
+       │
+       ▼
+  ┌────────────┐     ┌─────────────────────────────────────────┐
+  │ next       │────▶│         responseCapture                 │
+  │ Handler    │     │  .body []byte  .header  .statusCode     │
+  └────────────┘     └────────────────────┬────────────────────┘
+                                          │
+                               Content-Type: text/html?
+                                     │ yes      │ no
+                                     ▼          ▼
+                             ┌──────────┐  Pass through
+                             │ Decomp.  │  unchanged
+                             │ (gzip)   │
+                             └────┬─────┘
+                                  │
+                                  ▼
+                         ┌─────────────────┐
+                         │  InjectFurigana │
+                         │   HTML Parser   │
+                         │ (x/net/html)    │
+                         └────────┬────────┘
+                                  │
+                    ┌─────────────┴──────────────┐
+                    │       walkNode (DFS)        │
+                    │  SkipTags: script, pre,     │
+                    │  code, ruby, style, ...     │
+                    │  SkipClass: no-furigana     │
+                    └─────────────┬──────────────┘
+                                  │
+                     Text node contains kanji?
+                                  │ yes
+                                  ▼
+                         ┌─────────────────┐
+                         │  Annotator      │◀──── Interface
+                         │  .Annotate(txt) │
+                         └────────┬────────┘
+                    ┌─────────────┴──────────────────┐
+                    │                                │
+           ┌────────┴───────┐              ┌─────────┴────────┐
+           │ DictAnnotator  │              │ MeCabAnnotator   │
+           │ (built-in)     │              │ (subprocess IPC) │
+           │ greedy 8→1     │              │ IPAdic / UniDic  │
+           │ longest-match  │              │ ChasenOutput     │
+           └────────┬───────┘              └─────────┬────────┘
+                    └─────────────┬──────────────────┘
+                                  │
+                                  ▼
+                             []Token
+                     { Surface, Reading, IsKanji }
+                                  │
+                    Level filter (JLPT N5 … N1)
+                                  │
+                    Mode convert (hiragana → katakana / romaji)
+                                  │
+                                  ▼
+                    <ruby><rb>漢字</rb><rt>かんじ</rt></ruby>
+                                  │
+                    replaceTextNode() in DOM
+                                  │
+                                  ▼
+                         ┌─────────────────┐
+                         │  Inject CSS     │
+                         │  into <head>    │
+                         │  (idempotent)   │
+                         └────────┬────────┘
+                                  │
+                                  ▼
+                    X-Furigana-Injected: N
+                    X-Furigana-Backend: built-in-dict
+                         Annotated HTML response
+`;
+  document.getElementById('skip-tags-display').innerHTML = [
+    'script','style','pre','code','kbd','samp','var',
+    'textarea','button','input','select','option',
+    'abbr','ruby','rt','rb','head','title'
+  ].map(t => `<span class="badge" style="font-family:var(--mono);font-size:9px">&lt;${t}&gt;</span>`).join('');
+}
+
+// ═══════════════════════════════════════
+// API TESTER
+// ═══════════════════════════════════════
+
+function runAPITest() {
+  const ep = document.getElementById('api-endpoint').value;
+  const input = document.getElementById('api-input').value;
+  const respEl = document.getElementById('api-response');
+
+  // Simulate API responses (demo mode)
+  let resp;
+  try {
+    if (ep === 'annotate-text') {
+      const req = JSON.parse(input);
+      const tokens = annotate(req.text || '', req.mode || 'hiragana');
+      resp = {
+        input: req.text,
+        backend: 'built-in-dict',
+        tokens: tokens.map(t => ({
+          surface: t.surface,
+          reading: t.reading || '',
+          romaji: t.reading ? toRomaji(t.reading) : '',
+          is_kanji: t.isKanji,
+          pos: t.pos || ''
+        }))
+      };
+    } else if (ep === 'annotate-html') {
+      const req = JSON.parse(input);
+      const tokens = annotate(req.html || '');
+      resp = {
+        html: tokensToRuby(tokens),
+        injected: tokens.filter(t=>t.isKanji&&t.reading).length,
+        skipped: tokens.filter(t=>t.isKanji&&!t.reading).length,
+        tokens: tokens.length,
+        backend: 'built-in-dict'
+      };
+    } else if (ep === 'lookup') {
+      const params = new URLSearchParams(input.replace(/^.*\?/,''));
+      const word = params.get('word') || input.trim();
+      const e = DICT[word];
+      resp = e ? {word, found:true, reading:e.r, katakana:toKatakana(e.r), romaji:toRomaji(e.r), jlpt_level:e.jlpt, pos:e.pos} : {word, found:false};
+    } else if (ep === 'stats') {
+      resp = {backend:'built-in-dict', mode:'hiragana', level:'all', dict_size:Object.keys(DICT).length};
+    }
+    respEl.textContent = JSON.stringify(resp, null, 2);
+  } catch(e) {
+    respEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+function toast(msg, type='success') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<span>${type==='success'?'✓':'✗'}</span><span>${msg}</span>`;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(() => { t.style.animation = 'toastOut .25s ease forwards'; setTimeout(() => t.remove(), 250); }, 2800);
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+
+renderSampleGrid();
+runAnnotate();
+renderQuickWords();
+loadReaderSample();
+showCode('usage');
+</script>
+</body>
+</html>

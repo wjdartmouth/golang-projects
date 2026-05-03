@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JLPT語彙クイズ — Demo</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Courier+Prime:wght@400;700&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box}
+
+:root {
+  --bg: #0e0d0b;
+  --surface: #171613;
+  --surface2: #1f1d19;
+  --border: rgba(255,255,255,0.08);
+  --text: #e8e3d8;
+  --text-dim: #7a7468;
+  --text-hint: #4a4640;
+  --red: #e05a3a;
+  --red-dim: rgba(224,90,58,0.15);
+  --gold: #d4a426;
+  --gold-dim: rgba(212,164,38,0.12);
+  --green: #4caf78;
+  --green-dim: rgba(76,175,120,0.15);
+  --blue: #5ba4cf;
+  --blue-dim: rgba(91,164,207,0.12);
+  --mono: 'Courier Prime', monospace;
+  --jp: 'Zen Kaku Gothic New', sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--jp);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── HEADER ── */
+.header {
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  background: rgba(14,13,11,0.92);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--red);
+  letter-spacing: -0.03em;
+}
+
+.logo-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.header-stats {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.hstat {
+  text-align: center;
+}
+
+.hstat-num {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  display: block;
+  line-height: 1;
+}
+
+.hstat-lbl {
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.hstat.correct .hstat-num { color: var(--green); }
+.hstat.wrong .hstat-num { color: var(--red); }
+.hstat.score .hstat-num { color: var(--gold); }
+
+/* ── SETUP SCREEN ── */
+#setup-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.setup-card {
+  width: 100%;
+  max-width: 540px;
+}
+
+.setup-title {
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.setup-title span { color: var(--red); }
+
+.setup-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 32px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.option-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.option-grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
+.option-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.option-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+
+.opt-btn {
+  padding: 10px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-family: var(--jp);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  line-height: 1.3;
+}
+
+.opt-btn:hover {
+  border-color: rgba(255,255,255,0.2);
+  color: var(--text);
+}
+
+.opt-btn.selected {
+  background: var(--red-dim);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.opt-btn .opt-badge {
+  display: block;
+  font-weight: 900;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.opt-btn .opt-sub {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.count-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.count-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+  padding: 10px 16px;
+  width: 80px;
+  text-align: center;
+}
+
+.count-input:focus { outline: none; border-color: var(--red); }
+
+.start-btn {
+  margin-top: 28px;
+  width: 100%;
+  padding: 16px;
+  background: var(--red);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-family: var(--jp);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.start-btn:hover { background: #c94e30; transform: translateY(-1px); }
+.start-btn:active { transform: translateY(0); }
+
+/* ── QUIZ SCREEN ── */
+#quiz-screen {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 20px;
+}
+
+/* Progress bar */
+.progress-bar {
+  width: 100%;
+  max-width: 600px;
+  height: 3px;
+  background: var(--surface2);
+  border-radius: 2px;
+  margin-bottom: 28px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--red);
+  transition: width 0.4s ease;
+  border-radius: 2px;
+}
+
+/* Streak badge */
+.streak-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: var(--gold-dim);
+  border: 1px solid rgba(212,164,38,0.3);
+  border-radius: 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--gold);
+  margin-bottom: 20px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  letter-spacing: 0.08em;
+}
+
+.streak-badge.visible { opacity: 1; }
+
+/* Question card */
+.question-card {
+  width: 100%;
+  max-width: 600px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px;
+  margin-bottom: 20px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.question-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--red), var(--gold));
+}
+
+.q-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-hint);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.q-prompt {
+  font-size: 56px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-bottom: 8px;
+  transition: transform 0.2s;
+}
+
+.q-prompt-sub {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  margin-bottom: 0;
+}
+
+/* Choices */
+.choices {
+  width: 100%;
+  max-width: 600px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.choice-btn {
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: var(--jp);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+  line-height: 1.4;
+}
+
+.choice-btn:hover:not(:disabled) {
+  border-color: rgba(255,255,255,0.25);
+  background: var(--surface2);
+}
+
+.choice-btn .choice-text { display: block; font-weight: 500; }
+.choice-btn .choice-sub { display: block; font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+.choice-btn.correct {
+  background: var(--green-dim);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.choice-btn.correct .choice-sub { color: rgba(76,175,120,0.7); }
+
+.choice-btn.wrong {
+  background: var(--red-dim);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.choice-btn.wrong .choice-sub { color: rgba(224,90,58,0.7); }
+
+.choice-btn:disabled { cursor: default; }
+
+/* Flashcard flip */
+.flashcard {
+  width: 100%;
+  max-width: 600px;
+  perspective: 1000px;
+  margin-bottom: 20px;
+  cursor: pointer;
+}
+
+.flashcard-inner {
+  position: relative;
+  height: 200px;
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.4,0,0.2,1);
+}
+
+.flashcard.flipped .flashcard-inner {
+  transform: rotateY(180deg);
+}
+
+.flashcard-front, .flashcard-back {
+  position: absolute;
+  inset: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.flashcard-front::before, .flashcard-back::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--red), var(--gold));
+  border-radius: 16px 16px 0 0;
+}
+
+.flashcard-back {
+  transform: rotateY(180deg);
+  background: var(--surface2);
+}
+
+.flip-hint {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-hint);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.fc-prompt {
+  font-size: 52px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.fc-kana {
+  font-size: 16px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  margin-top: 6px;
+}
+
+.fc-meaning {
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--gold);
+  margin-bottom: 4px;
+}
+
+.fc-meaning-ja {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.fc-buttons {
+  width: 100%;
+  max-width: 600px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.fc-btn {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: var(--jp);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.fc-btn.knew {
+  background: var(--green-dim);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.fc-btn.knew:hover { background: rgba(76,175,120,0.25); }
+
+.fc-btn.forgot {
+  background: var(--red-dim);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.fc-btn.forgot:hover { background: rgba(224,90,58,0.25); }
+
+/* Feedback overlay */
+.feedback {
+  width: 100%;
+  max-width: 600px;
+  padding: 16px 20px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  display: none;
+  animation: slideIn 0.2s ease;
+}
+
+@keyframes slideIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:none} }
+
+.feedback.show { display: block; }
+.feedback.correct { background: var(--green-dim); border: 1px solid rgba(76,175,120,0.3); }
+.feedback.wrong { background: var(--red-dim); border: 1px solid rgba(224,90,58,0.3); }
+
+.feedback-head {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.feedback.correct .feedback-head { color: var(--green); }
+.feedback.wrong .feedback-head { color: var(--red); }
+
+.feedback-example {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* NEXT button */
+.next-btn {
+  width: 100%;
+  max-width: 600px;
+  padding: 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-dim);
+  font-family: var(--jp);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: none;
+  letter-spacing: 0.05em;
+}
+
+.next-btn.show { display: block; }
+.next-btn:hover { border-color: rgba(255,255,255,0.25); color: var(--text); }
+
+/* ── RESULT SCREEN ── */
+#result-screen {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.result-card {
+  width: 100%;
+  max-width: 540px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px;
+}
+
+.grade-display {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.grade-letter {
+  font-size: 80px;
+  font-weight: 900;
+  line-height: 1;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.grade-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.result-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.rstat {
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 14px;
+  text-align: center;
+}
+
+.rstat-num {
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.rstat-lbl {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.rstat.c .rstat-num { color: var(--green); }
+.rstat.w .rstat-num { color: var(--red); }
+.rstat.s .rstat-num { color: var(--gold); }
+
+.wrong-section {
+  margin-top: 20px;
+}
+
+.wrong-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.wrong-word {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.wrong-word:last-child { border-bottom: none; }
+
+.ww-kanji { font-weight: 700; font-size: 16px; }
+.ww-kana { font-size: 11px; color: var(--text-dim); display: block; }
+.ww-meaning { color: var(--text-dim); font-size: 12px; text-align: right; }
+
+.restart-btn {
+  margin-top: 28px;
+  width: 100%;
+  padding: 14px;
+  background: var(--red);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-family: var(--jp);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.05em;
+}
+
+.restart-btn:hover { background: #c94e30; }
+
+/* ── LEVEL PILL ── */
+.level-pill {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.1em;
+  margin-left: 8px;
+}
+
+.pill-N5 { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(91,164,207,0.3); }
+.pill-N4 { background: var(--green-dim); color: var(--green); border: 1px solid rgba(76,175,120,0.3); }
+.pill-N3 { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(212,164,38,0.3); }
+.pill-N2 { background: rgba(224,90,58,0.1); color: #e09060; border: 1px solid rgba(224,90,58,0.3); }
+.pill-N1 { background: var(--red-dim); color: var(--red); border: 1px solid rgba(224,90,58,0.4); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">
+    <div class="logo-mark">JLPT</div>
+    <div class="logo-text">語彙クイズ</div>
+  </div>
+  <div class="header-stats">
+    <div class="hstat correct">
+      <span class="hstat-num" id="h-correct">0</span>
+      <span class="hstat-lbl">正解</span>
+    </div>
+    <div class="hstat wrong">
+      <span class="hstat-num" id="h-wrong">0</span>
+      <span class="hstat-lbl">不正解</span>
+    </div>
+    <div class="hstat score">
+      <span class="hstat-num" id="h-score">0</span>
+      <span class="hstat-lbl">スコア</span>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen">
+  <div class="setup-card">
+    <div class="setup-title">日本語<span>能力</span>試験</div>
+    <div class="setup-sub">JLPT Vocabulary Quiz</div>
+
+    <div class="form-group">
+      <label class="form-label">レベル選択</label>
+      <div class="option-grid cols-5" id="level-opts">
+        <button class="opt-btn selected" data-val="N5" onclick="select('level', this)">
+          <span class="opt-badge">N5</span>
+          <span class="opt-sub">初級</span>
+        </button>
+        <button class="opt-btn" data-val="N4" onclick="select('level', this)">
+          <span class="opt-badge">N4</span>
+          <span class="opt-sub">初中級</span>
+        </button>
+        <button class="opt-btn" data-val="N3" onclick="select('level', this)">
+          <span class="opt-badge">N3</span>
+          <span class="opt-sub">中級</span>
+        </button>
+        <button class="opt-btn" data-val="N2" onclick="select('level', this)">
+          <span class="opt-badge">N2</span>
+          <span class="opt-sub">上級</span>
+        </button>
+        <button class="opt-btn" data-val="N1" onclick="select('level', this)">
+          <span class="opt-badge">N1</span>
+          <span class="opt-sub">最上級</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">モード選択</label>
+      <div class="option-grid cols-2" id="mode-opts">
+        <button class="opt-btn selected" data-val="kanji_to_meaning" onclick="select('mode', this)">
+          <span class="opt-badge" style="font-size:13px">漢字→意味</span>
+          <span class="opt-sub">漢字を見て意味を選ぶ</span>
+        </button>
+        <button class="opt-btn" data-val="meaning_to_kanji" onclick="select('mode', this)">
+          <span class="opt-badge" style="font-size:13px">意味→漢字</span>
+          <span class="opt-sub">意味から漢字を選ぶ</span>
+        </button>
+        <button class="opt-btn" data-val="kana_to_kanji" onclick="select('mode', this)">
+          <span class="opt-badge" style="font-size:13px">かな→漢字</span>
+          <span class="opt-sub">読み方から漢字を選ぶ</span>
+        </button>
+        <button class="opt-btn" data-val="flashcard" onclick="select('mode', this)">
+          <span class="opt-badge" style="font-size:13px">フラッシュカード</span>
+          <span class="opt-sub">めくって自己採点</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">問題数</label>
+      <div class="count-row">
+        <input type="number" class="count-input" id="count-input" value="10" min="5" max="20">
+        <span style="font-size:12px;color:var(--text-dim)">問 (5–20)</span>
+      </div>
+    </div>
+
+    <button class="start-btn" onclick="startQuiz()">クイズを始める →</button>
+  </div>
+</div>
+
+<!-- QUIZ SCREEN -->
+<div id="quiz-screen">
+  <div class="progress-bar" style="width:100%;max-width:600px">
+    <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+  </div>
+
+  <div class="streak-badge" id="streak-badge">🔥 <span id="streak-num">0</span> 連続正解</div>
+
+  <!-- MC Question -->
+  <div id="mc-area" style="width:100%;max-width:600px;display:flex;flex-direction:column;align-items:center">
+    <div class="question-card" id="question-card">
+      <div class="q-meta" id="q-meta">問題 1 / 10</div>
+      <div class="q-prompt" id="q-prompt">—</div>
+      <div class="q-prompt-sub" id="q-prompt-sub"></div>
+    </div>
+
+    <div class="choices" id="choices"></div>
+
+    <div class="feedback" id="feedback">
+      <div class="feedback-head" id="feedback-head"></div>
+      <div class="feedback-example" id="feedback-example"></div>
+    </div>
+
+    <button class="next-btn" id="next-btn" onclick="nextQuestion()">次の問題へ →</button>
+  </div>
+
+  <!-- Flashcard -->
+  <div id="fc-area" style="width:100%;max-width:600px;display:none;flex-direction:column;align-items:center">
+    <div class="question-card" style="text-align:center;cursor:default">
+      <div class="q-meta" id="fc-meta">問題 1 / 10</div>
+      <div class="q-prompt" id="fc-prompt">—</div>
+      <div class="q-prompt-sub" id="fc-kana"></div>
+    </div>
+
+    <div class="flashcard" id="flashcard" onclick="flipCard()">
+      <div class="flashcard-inner">
+        <div class="flashcard-front">
+          <div class="flip-hint">タップして答えを確認</div>
+          <div style="font-size:40px;color:var(--text-dim)">？</div>
+        </div>
+        <div class="flashcard-back" id="fc-back">
+          <div class="fc-meaning" id="fc-meaning">—</div>
+          <div class="fc-meaning-ja" id="fc-meaning-ja"></div>
+          <div class="fc-meaning-ja" id="fc-example" style="margin-top:10px;font-style:italic"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fc-buttons" id="fc-buttons" style="display:none">
+      <button class="fc-btn forgot" onclick="fcAnswer(false)">✗ わからなかった</button>
+      <button class="fc-btn knew" onclick="fcAnswer(true)">✓ わかった！</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESULT SCREEN -->
+<div id="result-screen">
+  <div class="result-card">
+    <div class="grade-display">
+      <span class="grade-letter" id="grade-letter">—</span>
+      <span class="grade-label" id="grade-label"></span>
+    </div>
+
+    <div class="result-stats">
+      <div class="rstat c">
+        <span class="rstat-num" id="r-correct">0</span>
+        <span class="rstat-lbl">正解</span>
+      </div>
+      <div class="rstat w">
+        <span class="rstat-num" id="r-wrong">0</span>
+        <span class="rstat-lbl">不正解</span>
+      </div>
+      <div class="rstat s">
+        <span class="rstat-num" id="r-score">0</span>
+        <span class="rstat-lbl">スコア</span>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-dim);margin-bottom:20px">
+      <span>正解率: <span id="r-accuracy" style="color:var(--text)">—</span></span>
+      <span>最大連続: <span id="r-streak" style="color:var(--gold)">—</span></span>
+    </div>
+
+    <div class="wrong-section" id="wrong-section" style="display:none">
+      <div class="wrong-title">復習リスト / Review List</div>
+      <div id="wrong-list"></div>
+    </div>
+
+    <button class="restart-btn" onclick="restartQuiz()">もう一度挑戦する →</button>
+  </div>
+</div>
+
+<script>
+// ── Embedded vocabulary data (mirrors the Go backend)
+const VOCAB = [
+  // N5
+  {id:"n5-001",kanji:"今日",kana:"きょう",romaji:"kyou",meaning:"today",meaning_ja:"本日",level:"N5",category:"時間・日付",example_ja:"今日は月曜日です。",example_en:"Today is Monday."},
+  {id:"n5-002",kanji:"明日",kana:"あした",romaji:"ashita",meaning:"tomorrow",meaning_ja:"翌日",level:"N5",category:"時間・日付"},
+  {id:"n5-003",kanji:"昨日",kana:"きのう",romaji:"kinou",meaning:"yesterday",meaning_ja:"前日",level:"N5",category:"時間・日付"},
+  {id:"n5-004",kanji:"毎日",kana:"まいにち",romaji:"mainichi",meaning:"every day",meaning_ja:"日々",level:"N5",category:"時間・日付"},
+  {id:"n5-005",kanji:"今年",kana:"ことし",romaji:"kotoshi",meaning:"this year",meaning_ja:"本年",level:"N5",category:"時間・日付"},
+  {id:"n5-006",kanji:"来年",kana:"らいねん",romaji:"rainen",meaning:"next year",meaning_ja:"翌年",level:"N5",category:"時間・日付"},
+  {id:"n5-007",kanji:"百",kana:"ひゃく",romaji:"hyaku",meaning:"hundred",meaning_ja:"100",level:"N5",category:"数・量"},
+  {id:"n5-008",kanji:"千",kana:"せん",romaji:"sen",meaning:"thousand",meaning_ja:"1,000",level:"N5",category:"数・量"},
+  {id:"n5-009",kanji:"万",kana:"まん",romaji:"man",meaning:"ten thousand",meaning_ja:"10,000",level:"N5",category:"数・量"},
+  {id:"n5-010",kanji:"母",kana:"はは",romaji:"haha",meaning:"mother (own)",meaning_ja:"自分の母親",level:"N5",category:"家族・人",example_ja:"母は料理が上手です。",example_en:"My mother is a good cook."},
+  {id:"n5-011",kanji:"父",kana:"ちち",romaji:"chichi",meaning:"father (own)",meaning_ja:"自分の父親",level:"N5",category:"家族・人"},
+  {id:"n5-012",kanji:"兄",kana:"あに",romaji:"ani",meaning:"older brother (own)",meaning_ja:"自分の兄",level:"N5",category:"家族・人"},
+  {id:"n5-013",kanji:"姉",kana:"あね",romaji:"ane",meaning:"older sister (own)",meaning_ja:"自分の姉",level:"N5",category:"家族・人"},
+  {id:"n5-014",kanji:"水",kana:"みず",romaji:"mizu",meaning:"water",meaning_ja:"水分",level:"N5",category:"食べ物・飲み物"},
+  {id:"n5-015",kanji:"肉",kana:"にく",romaji:"niku",meaning:"meat",meaning_ja:"肉類",level:"N5",category:"食べ物・飲み物"},
+  {id:"n5-016",kanji:"魚",kana:"さかな",romaji:"sakana",meaning:"fish",meaning_ja:"魚類",level:"N5",category:"食べ物・飲み物"},
+  {id:"n5-017",kanji:"野菜",kana:"やさい",romaji:"yasai",meaning:"vegetables",meaning_ja:"野菜類",level:"N5",category:"食べ物・飲み物"},
+  {id:"n5-018",kanji:"食べる",kana:"たべる",romaji:"taberu",meaning:"to eat",meaning_ja:"食事する",level:"N5",category:"動詞"},
+  {id:"n5-019",kanji:"飲む",kana:"のむ",romaji:"nomu",meaning:"to drink",meaning_ja:"飲用する",level:"N5",category:"動詞"},
+  {id:"n5-020",kanji:"行く",kana:"いく",romaji:"iku",meaning:"to go",meaning_ja:"移動する",level:"N5",category:"動詞"},
+  {id:"n5-021",kanji:"来る",kana:"くる",romaji:"kuru",meaning:"to come",meaning_ja:"到来する",level:"N5",category:"動詞"},
+  {id:"n5-022",kanji:"見る",kana:"みる",romaji:"miru",meaning:"to see / watch",meaning_ja:"視る",level:"N5",category:"動詞"},
+  {id:"n5-023",kanji:"聞く",kana:"きく",romaji:"kiku",meaning:"to listen / ask",meaning_ja:"聴く・尋ねる",level:"N5",category:"動詞"},
+  {id:"n5-024",kanji:"話す",kana:"はなす",romaji:"hanasu",meaning:"to speak",meaning_ja:"会話する",level:"N5",category:"動詞"},
+  {id:"n5-025",kanji:"書く",kana:"かく",romaji:"kaku",meaning:"to write",meaning_ja:"記す",level:"N5",category:"動詞"},
+  {id:"n5-026",kanji:"読む",kana:"よむ",romaji:"yomu",meaning:"to read",meaning_ja:"読書する",level:"N5",category:"動詞"},
+  {id:"n5-027",kanji:"買う",kana:"かう",romaji:"kau",meaning:"to buy",meaning_ja:"購入する",level:"N5",category:"動詞"},
+  {id:"n5-028",kanji:"売る",kana:"うる",romaji:"uru",meaning:"to sell",meaning_ja:"販売する",level:"N5",category:"動詞"},
+  {id:"n5-029",kanji:"大きい",kana:"おおきい",romaji:"ookii",meaning:"big / large",meaning_ja:"大型の",level:"N5",category:"形容詞"},
+  {id:"n5-030",kanji:"小さい",kana:"ちいさい",romaji:"chiisai",meaning:"small / little",meaning_ja:"小型の",level:"N5",category:"形容詞"},
+  {id:"n5-031",kanji:"新しい",kana:"あたらしい",romaji:"atarashii",meaning:"new",meaning_ja:"新品の",level:"N5",category:"形容詞"},
+  {id:"n5-032",kanji:"古い",kana:"ふるい",romaji:"furui",meaning:"old (thing)",meaning_ja:"年月を経た",level:"N5",category:"形容詞"},
+  {id:"n5-033",kanji:"高い",kana:"たかい",romaji:"takai",meaning:"tall / expensive",meaning_ja:"高価・高さがある",level:"N5",category:"形容詞"},
+  {id:"n5-034",kanji:"安い",kana:"やすい",romaji:"yasui",meaning:"cheap / inexpensive",meaning_ja:"低価格の",level:"N5",category:"形容詞"},
+  // N4
+  {id:"n4-001",kanji:"経験",kana:"けいけん",romaji:"keiken",meaning:"experience",meaning_ja:"体験・実経験",level:"N4",category:"仕事・学校",example_ja:"仕事の経験が三年あります。",example_en:"I have three years of work experience."},
+  {id:"n4-002",kanji:"練習",kana:"れんしゅう",romaji:"renshuu",meaning:"practice / drill",meaning_ja:"反復練習",level:"N4",category:"仕事・学校"},
+  {id:"n4-003",kanji:"準備",kana:"じゅんび",romaji:"junbi",meaning:"preparation",meaning_ja:"用意・支度",level:"N4",category:"仕事・学校"},
+  {id:"n4-004",kanji:"連絡",kana:"れんらく",romaji:"renraku",meaning:"contact / communication",meaning_ja:"通知・通信",level:"N4",category:"仕事・学校"},
+  {id:"n4-005",kanji:"予約",kana:"よやく",romaji:"yoyaku",meaning:"reservation / booking",meaning_ja:"事前予約",level:"N4",category:"仕事・学校"},
+  {id:"n4-006",kanji:"運動",kana:"うんどう",romaji:"undou",meaning:"exercise / sport",meaning_ja:"身体活動",level:"N4",category:"体・健康"},
+  {id:"n4-007",kanji:"病気",kana:"びょうき",romaji:"byouki",meaning:"illness / sickness",meaning_ja:"疾患",level:"N4",category:"体・健康"},
+  {id:"n4-008",kanji:"薬",kana:"くすり",romaji:"kusuri",meaning:"medicine / drug",meaning_ja:"医薬品",level:"N4",category:"体・健康"},
+  {id:"n4-009",kanji:"旅行",kana:"りょこう",romaji:"ryokou",meaning:"travel / trip",meaning_ja:"旅・旅行",level:"N4",category:"交通・移動"},
+  {id:"n4-010",kanji:"出発",kana:"しゅっぱつ",romaji:"shuppatsu",meaning:"departure",meaning_ja:"出発・旅立ち",level:"N4",category:"交通・移動"},
+  {id:"n4-011",kanji:"到着",kana:"とうちゃく",romaji:"touchaku",meaning:"arrival",meaning_ja:"到達・着",level:"N4",category:"交通・移動"},
+  {id:"n4-012",kanji:"乗る",kana:"のる",romaji:"noru",meaning:"to ride / board",meaning_ja:"乗車・搭乗する",level:"N4",category:"動詞"},
+  {id:"n4-013",kanji:"降りる",kana:"おりる",romaji:"oriru",meaning:"to get off / descend",meaning_ja:"降車する",level:"N4",category:"動詞"},
+  {id:"n4-014",kanji:"変える",kana:"かえる",romaji:"kaeru",meaning:"to change (something)",meaning_ja:"変更する",level:"N4",category:"動詞"},
+  {id:"n4-015",kanji:"決める",kana:"きめる",romaji:"kimeru",meaning:"to decide",meaning_ja:"決定する",level:"N4",category:"動詞"},
+  {id:"n4-016",kanji:"続ける",kana:"つづける",romaji:"tsuzukeru",meaning:"to continue",meaning_ja:"継続する",level:"N4",category:"動詞"},
+  {id:"n4-017",kanji:"忙しい",kana:"いそがしい",romaji:"isogashii",meaning:"busy",meaning_ja:"多忙な",level:"N4",category:"形容詞"},
+  {id:"n4-018",kanji:"難しい",kana:"むずかしい",romaji:"muzukashii",meaning:"difficult",meaning_ja:"困難な",level:"N4",category:"形容詞"},
+  {id:"n4-019",kanji:"危ない",kana:"あぶない",romaji:"abunai",meaning:"dangerous",meaning_ja:"危険な",level:"N4",category:"形容詞"},
+  {id:"n4-020",kanji:"丁寧",kana:"ていねい",romaji:"teinei",meaning:"polite / careful",meaning_ja:"礼儀正しい",level:"N4",category:"社会・文化"},
+  // N3
+  {id:"n3-001",kanji:"意見",kana:"いけん",romaji:"iken",meaning:"opinion / view",meaning_ja:"考え・見解",level:"N3",category:"抽象・概念"},
+  {id:"n3-002",kanji:"理由",kana:"りゆう",romaji:"riyuu",meaning:"reason / cause",meaning_ja:"原因・わけ",level:"N3",category:"抽象・概念"},
+  {id:"n3-003",kanji:"結果",kana:"けっか",romaji:"kekka",meaning:"result / outcome",meaning_ja:"成果・結末",level:"N3",category:"抽象・概念"},
+  {id:"n3-004",kanji:"影響",kana:"えいきょう",romaji:"eikyou",meaning:"influence / effect",meaning_ja:"作用・影響力",level:"N3",category:"抽象・概念"},
+  {id:"n3-005",kanji:"問題",kana:"もんだい",romaji:"mondai",meaning:"problem / issue",meaning_ja:"課題・難問",level:"N3",category:"抽象・概念"},
+  {id:"n3-006",kanji:"解決",kana:"かいけつ",romaji:"kaiketsu",meaning:"solution / resolution",meaning_ja:"問題を解くこと",level:"N3",category:"抽象・概念"},
+  {id:"n3-007",kanji:"関係",kana:"かんけい",romaji:"kankei",meaning:"relationship / connection",meaning_ja:"つながり・関連",level:"N3",category:"社会・文化"},
+  {id:"n3-008",kanji:"社会",kana:"しゃかい",romaji:"shakai",meaning:"society",meaning_ja:"世の中・社会全体",level:"N3",category:"社会・文化"},
+  {id:"n3-009",kanji:"文化",kana:"ぶんか",romaji:"bunka",meaning:"culture",meaning_ja:"文明・慣習",level:"N3",category:"社会・文化"},
+  {id:"n3-010",kanji:"技術",kana:"ぎじゅつ",romaji:"gijutsu",meaning:"technology / skill",meaning_ja:"テクノロジー・技巧",level:"N3",category:"仕事・学校"},
+  {id:"n3-011",kanji:"失敗",kana:"しっぱい",romaji:"shippai",meaning:"failure / mistake",meaning_ja:"やり損ない",level:"N3",category:"感情・状態"},
+  {id:"n3-012",kanji:"成功",kana:"せいこう",romaji:"seikou",meaning:"success",meaning_ja:"うまくいくこと",level:"N3",category:"感情・状態"},
+  {id:"n3-013",kanji:"感謝",kana:"かんしゃ",romaji:"kansha",meaning:"gratitude / thanks",meaning_ja:"ありがたく思う気持ち",level:"N3",category:"感情・状態"},
+  {id:"n3-014",kanji:"心配",kana:"しんぱい",romaji:"shinpai",meaning:"worry / concern",meaning_ja:"不安・懸念",level:"N3",category:"感情・状態"},
+  {id:"n3-015",kanji:"驚く",kana:"おどろく",romaji:"odoroku",meaning:"to be surprised",meaning_ja:"びっくりする",level:"N3",category:"動詞"},
+  {id:"n3-016",kanji:"集める",kana:"あつめる",romaji:"atsumeru",meaning:"to collect / gather",meaning_ja:"集積する",level:"N3",category:"動詞"},
+  {id:"n3-017",kanji:"比べる",kana:"くらべる",romaji:"kuraberu",meaning:"to compare",meaning_ja:"対比する",level:"N3",category:"動詞"},
+  {id:"n3-018",kanji:"考える",kana:"かんがえる",romaji:"kangaeru",meaning:"to think / consider",meaning_ja:"思考する",level:"N3",category:"動詞"},
+  {id:"n3-019",kanji:"重要",kana:"じゅうよう",romaji:"juuyou",meaning:"important / significant",meaning_ja:"大切・重大",level:"N3",category:"形容詞"},
+  {id:"n3-020",kanji:"複雑",kana:"ふくざつ",romaji:"fukuzatsu",meaning:"complex / complicated",meaning_ja:"入り組んでいる",level:"N3",category:"形容詞"},
+  // N2
+  {id:"n2-001",kanji:"義務",kana:"ぎむ",romaji:"gimu",meaning:"duty / obligation",meaning_ja:"果たさなければならないこと",level:"N2",category:"社会・文化"},
+  {id:"n2-002",kanji:"権利",kana:"けんり",romaji:"kenri",meaning:"right / entitlement",meaning_ja:"正当な資格・権限",level:"N2",category:"社会・文化"},
+  {id:"n2-003",kanji:"契約",kana:"けいやく",romaji:"keiyaku",meaning:"contract / agreement",meaning_ja:"法的な合意",level:"N2",category:"仕事・学校"},
+  {id:"n2-004",kanji:"収入",kana:"しゅうにゅう",romaji:"shuunyuu",meaning:"income / revenue",meaning_ja:"所得・稼ぎ",level:"N2",category:"仕事・学校"},
+  {id:"n2-005",kanji:"投資",kana:"とうし",romaji:"toushi",meaning:"investment",meaning_ja:"利益を目的とした出資",level:"N2",category:"仕事・学校"},
+  {id:"n2-006",kanji:"環境",kana:"かんきょう",romaji:"kankyou",meaning:"environment",meaning_ja:"周囲の状況・自然環境",level:"N2",category:"自然・天気"},
+  {id:"n2-007",kanji:"資源",kana:"しげん",romaji:"shigen",meaning:"resources",meaning_ja:"活用できる素材・エネルギー",level:"N2",category:"自然・天気"},
+  {id:"n2-008",kanji:"維持",kana:"いじ",romaji:"iji",meaning:"maintenance / upkeep",meaning_ja:"現状を保つこと",level:"N2",category:"抽象・概念"},
+  {id:"n2-009",kanji:"促進",kana:"そくしん",romaji:"sokushin",meaning:"promotion / acceleration",meaning_ja:"物事を進めること",level:"N2",category:"抽象・概念"},
+  {id:"n2-010",kanji:"把握",kana:"はあく",romaji:"haaku",meaning:"grasp / understanding",meaning_ja:"状況を正確につかむ",level:"N2",category:"抽象・概念"},
+  {id:"n2-011",kanji:"検討",kana:"けんとう",romaji:"kentou",meaning:"consideration / review",meaning_ja:"詳しく調べ考えること",level:"N2",category:"抽象・概念"},
+  {id:"n2-012",kanji:"指摘",kana:"してき",romaji:"shiteki",meaning:"point out / indicate",meaning_ja:"問題点などを示す",level:"N2",category:"動詞"},
+  {id:"n2-013",kanji:"批判",kana:"ひはん",romaji:"hihan",meaning:"criticism / critique",meaning_ja:"欠点などを論じること",level:"N2",category:"抽象・概念"},
+  {id:"n2-014",kanji:"議論",kana:"ぎろん",romaji:"giron",meaning:"debate / argument",meaning_ja:"意見を出し合うこと",level:"N2",category:"抽象・概念"},
+  {id:"n2-015",kanji:"矛盾",kana:"むじゅん",romaji:"mujun",meaning:"contradiction",meaning_ja:"前後が食い違うこと",level:"N2",category:"抽象・概念"},
+  // N1
+  {id:"n1-001",kanji:"概念",kana:"がいねん",romaji:"gainen",meaning:"concept / notion",meaning_ja:"一般的な考え方",level:"N1",category:"抽象・概念"},
+  {id:"n1-002",kanji:"抽象",kana:"ちゅうしょう",romaji:"chuushou",meaning:"abstraction",meaning_ja:"具体性をはぶいた考え",level:"N1",category:"抽象・概念"},
+  {id:"n1-003",kanji:"倫理",kana:"りんり",romaji:"rinri",meaning:"ethics / morality",meaning_ja:"道徳的な原則",level:"N1",category:"社会・文化"},
+  {id:"n1-004",kanji:"哲学",kana:"てつがく",romaji:"tetsugaku",meaning:"philosophy",meaning_ja:"存在・知識・価値を探求する学問",level:"N1",category:"抽象・概念"},
+  {id:"n1-005",kanji:"妥協",kana:"だきょう",romaji:"dakyou",meaning:"compromise",meaning_ja:"互いに譲り合って解決すること",level:"N1",category:"抽象・概念"},
+  {id:"n1-006",kanji:"慣習",kana:"かんしゅう",romaji:"kanshuu",meaning:"custom / convention",meaning_ja:"長く続いてきた習わし",level:"N1",category:"社会・文化"},
+  {id:"n1-007",kanji:"象徴",kana:"しょうちょう",romaji:"shouchou",meaning:"symbol / emblem",meaning_ja:"何かを表すしるし",level:"N1",category:"抽象・概念"},
+  {id:"n1-008",kanji:"矜持",kana:"きょうじ",romaji:"kyouji",meaning:"pride / dignity",meaning_ja:"自分を誇りに思う気持ち",level:"N1",category:"感情・状態"},
+  {id:"n1-009",kanji:"逡巡",kana:"しゅんじゅん",romaji:"shunjun",meaning:"hesitation / indecision",meaning_ja:"ためらい・決断できないこと",level:"N1",category:"感情・状態"},
+  {id:"n1-010",kanji:"忖度",kana:"そんたく",romaji:"sontaku",meaning:"reading the room",meaning_ja:"相手の気持ちを推し量ること",level:"N1",category:"社会・文化",example_ja:"上司の意向を忖度する。",example_en:"To read what the boss wants without being told."},
+  {id:"n1-011",kanji:"斟酌",kana:"しんしゃく",romaji:"shinshaku",meaning:"consideration / discretion",meaning_ja:"事情をくんで手加減すること",level:"N1",category:"抽象・概念"},
+  {id:"n1-012",kanji:"脆弱",kana:"ぜいじゃく",romaji:"zeijaku",meaning:"fragile / vulnerable",meaning_ja:"もろく弱い状態",level:"N1",category:"形容詞"},
+  {id:"n1-013",kanji:"醸成",kana:"じょうせい",romaji:"jousei",meaning:"to cultivate / foster",meaning_ja:"雰囲気・状況を作り上げること",level:"N1",category:"動詞"},
+  {id:"n1-014",kanji:"顕著",kana:"けんちょ",romaji:"kencho",meaning:"remarkable / conspicuous",meaning_ja:"はっきりと目立つ様子",level:"N1",category:"形容詞"},
+  {id:"n1-015",kanji:"払拭",kana:"ふっしょく",romaji:"fusshoku",meaning:"to dispel / wipe away",meaning_ja:"疑念・不安などを完全に取り除く",level:"N1",category:"動詞"},
+];
+
+// ── State
+let cfg = { level: 'N5', mode: 'kanji_to_meaning', count: 10 };
+let session = { words: [], idx: 0, correct: 0, wrong: 0, score: 0, streak: 0, bestStreak: 0, wrongWords: [] };
+let answered = false;
+let fcFlipped = false;
+
+// ── Selection helpers
+function select(group, btn) {
+  const container = btn.closest('.option-grid');
+  container.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  cfg[group] = btn.dataset.val;
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function getPool() {
+  return VOCAB.filter(w => w.level === cfg.level);
+}
+
+function buildChoices(correct, pool) {
+  const choices = [{ word: correct, correct: true }];
+  const others = shuffle(pool.filter(w => w.id !== correct.id));
+  const used = new Set([correct.meaning]);
+  for (const w of others) {
+    if (choices.length >= 4) break;
+    if (!used.has(w.meaning)) {
+      choices.push({ word: w, correct: false });
+      used.add(w.meaning);
+    }
+  }
+  while (choices.length < 4) {
+    const fallback = VOCAB.find(w => w.id !== correct.id && !used.has(w.meaning));
+    if (!fallback) break;
+    choices.push({ word: fallback, correct: false });
+    used.add(fallback.meaning);
+  }
+  return shuffle(choices);
+}
+
+// ── Quiz flow
+function startQuiz() {
+  const countVal = parseInt(document.getElementById('count-input').value) || 10;
+  cfg.count = Math.min(Math.max(countVal, 5), 20);
+
+  const pool = getPool();
+  const words = shuffle(pool).slice(0, cfg.count);
+  session = { words, idx: 0, correct: 0, wrong: 0, score: 0, streak: 0, bestStreak: 0, wrongWords: [] };
+
+  document.getElementById('setup-screen').style.display = 'none';
+  const qs = document.getElementById('quiz-screen');
+  qs.style.display = 'flex';
+
+  renderQuestion();
+}
+
+function renderQuestion() {
+  answered = false;
+  fcFlipped = false;
+
+  const word = session.words[session.idx];
+  const total = session.words.length;
+  const isFC = cfg.mode === 'flashcard';
+
+  // Progress
+  document.getElementById('progress-fill').style.width = (session.idx / total * 100) + '%';
+
+  // Streak badge
+  const badge = document.getElementById('streak-badge');
+  if (session.streak >= 3) {
+    document.getElementById('streak-num').textContent = session.streak;
+    badge.classList.add('visible');
+  } else {
+    badge.classList.remove('visible');
+  }
+
+  // Header stats
+  document.getElementById('h-correct').textContent = session.correct;
+  document.getElementById('h-wrong').textContent = session.wrong;
+  document.getElementById('h-score').textContent = session.score;
+
+  // Mode areas
+  document.getElementById('mc-area').style.display = isFC ? 'none' : 'flex';
+  document.getElementById('fc-area').style.display = isFC ? 'flex' : 'none';
+
+  // Hide feedback/next
+  document.getElementById('feedback').classList.remove('show');
+  document.getElementById('next-btn').classList.remove('show');
+  document.getElementById('fc-buttons').style.display = 'none';
+
+  if (isFC) {
+    renderFlashcard(word);
+  } else {
+    renderMC(word);
+  }
+}
+
+function renderMC(word) {
+  const total = session.words.length;
+  const meta = `問題 ${session.idx + 1} / ${total}　　<span class="level-pill pill-${word.level}">${word.level}</span>`;
+  document.getElementById('q-meta').innerHTML = meta;
+
+  let prompt = '', promptSub = '';
+  if (cfg.mode === 'kanji_to_meaning') {
+    prompt = word.kanji || word.kana;
+    promptSub = word.kanji ? word.kana : word.romaji;
+  } else if (cfg.mode === 'meaning_to_kanji') {
+    prompt = word.meaning;
+    promptSub = '';
+  } else if (cfg.mode === 'kana_to_kanji') {
+    prompt = word.kana;
+    promptSub = word.romaji;
+  }
+
+  document.getElementById('q-prompt').textContent = prompt;
+  document.getElementById('q-prompt-sub').textContent = promptSub;
+
+  // Build choices
+  const pool = getPool();
+  const choices = buildChoices(word, pool);
+  const container = document.getElementById('choices');
+  container.innerHTML = '';
+
+  choices.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    let text = '', sub = '';
+
+    if (cfg.mode === 'kanji_to_meaning' || cfg.mode === 'kana_to_kanji') {
+      text = c.word.meaning;
+      sub = c.word.meaning_ja;
+    } else {
+      text = c.word.kanji || c.word.kana;
+      sub = c.word.kana;
+    }
+
+    btn.innerHTML = `<span class="choice-text">${text}</span><span class="choice-sub">${sub}</span>`;
+    btn.dataset.correct = c.correct;
+    btn.dataset.wordId = c.word.id;
+    btn.onclick = () => answerMC(btn, c.correct, word);
+    container.appendChild(btn);
+  });
+}
+
+function renderFlashcard(word) {
+  const total = session.words.length;
+  document.getElementById('fc-meta').innerHTML = `問題 ${session.idx + 1} / ${total}　<span class="level-pill pill-${word.level}">${word.level}</span>`;
+  document.getElementById('fc-prompt').textContent = word.kanji || word.kana;
+  document.getElementById('fc-kana').textContent = word.kanji ? word.kana : word.romaji;
+  document.getElementById('fc-meaning').textContent = word.meaning;
+  document.getElementById('fc-meaning-ja').textContent = word.meaning_ja;
+  document.getElementById('fc-example').textContent = word.example_ja || '';
+  document.getElementById('flashcard').classList.remove('flipped');
+}
+
+function flipCard() {
+  if (fcFlipped) return;
+  fcFlipped = true;
+  document.getElementById('flashcard').classList.add('flipped');
+  setTimeout(() => {
+    document.getElementById('fc-buttons').style.display = 'grid';
+  }, 400);
+}
+
+function fcAnswer(knew) {
+  updateScore(knew, session.words[session.idx]);
+  session.idx++;
+  if (session.idx >= session.words.length) {
+    showResults();
+  } else {
+    setTimeout(renderQuestion, 200);
+  }
+}
+
+function answerMC(btn, isCorrect, word) {
+  if (answered) return;
+  answered = true;
+
+  // Color all buttons
+  document.querySelectorAll('.choice-btn').forEach(b => {
+    b.disabled = true;
+    if (b.dataset.wordId === word.id) {
+      b.classList.add('correct');
+    } else if (b === btn && !isCorrect) {
+      b.classList.add('wrong');
+    }
+  });
+
+  updateScore(isCorrect, word);
+  showFeedback(isCorrect, word);
+  document.getElementById('next-btn').classList.add('show');
+}
+
+function updateScore(isCorrect, word) {
+  if (isCorrect) {
+    session.correct++;
+    session.streak++;
+    if (session.streak > session.bestStreak) session.bestStreak = session.streak;
+    const bonus = session.streak >= 5 ? 30 : session.streak >= 3 ? 20 : 10;
+    session.score += bonus;
+  } else {
+    session.wrong++;
+    session.streak = 0;
+    session.wrongWords.push(word);
+  }
+  document.getElementById('h-correct').textContent = session.correct;
+  document.getElementById('h-wrong').textContent = session.wrong;
+  document.getElementById('h-score').textContent = session.score;
+
+  const badge = document.getElementById('streak-badge');
+  if (session.streak >= 3) {
+    document.getElementById('streak-num').textContent = session.streak;
+    badge.classList.add('visible');
+  } else {
+    badge.classList.remove('visible');
+  }
+}
+
+function showFeedback(isCorrect, word) {
+  const fb = document.getElementById('feedback');
+  fb.className = 'feedback show ' + (isCorrect ? 'correct' : 'wrong');
+  document.getElementById('feedback-head').textContent = isCorrect
+    ? `✓ 正解！ — ${word.meaning}`
+    : `✗ 不正解 — 正解: ${word.kanji || word.kana}「${word.meaning}」`;
+  let ex = '';
+  if (word.example_ja) ex = `例文: ${word.example_ja}${word.example_en ? '　(' + word.example_en + ')' : ''}`;
+  document.getElementById('feedback-example').textContent = ex;
+}
+
+function nextQuestion() {
+  session.idx++;
+  if (session.idx >= session.words.length) {
+    showResults();
+  } else {
+    renderQuestion();
+  }
+}
+
+// ── Results
+function grade(pct) {
+  if (pct >= 95) return ['S', '優秀'];
+  if (pct >= 80) return ['A', '良い'];
+  if (pct >= 65) return ['B', '普通'];
+  if (pct >= 50) return ['C', '要復習'];
+  return ['D', '要勉強'];
+}
+
+function showResults() {
+  document.getElementById('quiz-screen').style.display = 'none';
+  const rs = document.getElementById('result-screen');
+  rs.style.display = 'flex';
+
+  const total = session.words.length;
+  const acc = total > 0 ? (session.correct / total * 100) : 0;
+  const [letter, label] = grade(acc);
+
+  const gradeColors = { S: '#d4a426', A: '#4caf78', B: '#5ba4cf', C: '#e09060', D: '#e05a3a' };
+  document.getElementById('grade-letter').textContent = letter;
+  document.getElementById('grade-letter').style.color = gradeColors[letter];
+  document.getElementById('grade-label').textContent = label;
+
+  document.getElementById('r-correct').textContent = session.correct;
+  document.getElementById('r-wrong').textContent = session.wrong;
+  document.getElementById('r-score').textContent = session.score;
+  document.getElementById('r-accuracy').textContent = acc.toFixed(0) + '%';
+  document.getElementById('r-streak').textContent = session.bestStreak + '連続';
+
+  // Wrong words
+  if (session.wrongWords.length > 0) {
+    document.getElementById('wrong-section').style.display = 'block';
+    const list = document.getElementById('wrong-list');
+    list.innerHTML = session.wrongWords.map(w => `
+      <div class="wrong-word">
+        <div>
+          <span class="ww-kanji">${w.kanji || w.kana}</span>
+          <span class="ww-kana">${w.kanji ? w.kana : w.romaji}</span>
+        </div>
+        <div class="ww-meaning">${w.meaning}</div>
+      </div>
+    `).join('');
+  } else {
+    document.getElementById('wrong-section').style.display = 'none';
+  }
+}
+
+function restartQuiz() {
+  document.getElementById('result-screen').style.display = 'none';
+  document.getElementById('setup-screen').style.display = 'flex';
+  document.getElementById('h-correct').textContent = '0';
+  document.getElementById('h-wrong').textContent = '0';
+  document.getElementById('h-score').textContent = '0';
+}
+</script>
+</body>
+</html>
