@@ -24,7 +24,7 @@ Go HTTP ミドルウェアがHTMLレスポンス中の漢字に自動的に `<ru
 ## クイックスタート / Quick Start
 
 ```bash
-git clone https://github.com/yourname/furigana
+git clone https://github.com/wjdartmouth/furigana
 cd furigana
 go mod tidy
 go run main.go serve          # → http://localhost:8086
@@ -43,7 +43,7 @@ package main
 
 import (
     "net/http"
-    "github.com/yourname/furigana"
+    "github.com/wjdartmouth/furigana"
 )
 
 func main() {
@@ -260,4 +260,4 @@ MIT License © 2025
 
 ---
 
-[Portfolio](https://yourname.dev) · [GitHub](https://github.com/yourname) · [Zenn](https://zenn.dev/yourname)
+
