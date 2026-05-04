@@ -22,7 +22,7 @@
 ## クイックスタート
 
 ```bash
-git clone https://github.com/yourname/kintai-api
+git clone https://github.com/wjdartmouth/kintai-api
 cd kintai-api
 go run main.go
 # → http://localhost:8084
@@ -226,6 +226,3 @@ docker run -p 8084:8084 -e TZ=Asia/Tokyo kintai-api
 
 MIT License © 2025
 
----
-
-[Portfolio](https://yourname.dev) · [GitHub](https://github.com/yourname) · [Zenn](https://zenn.dev/yourname)
