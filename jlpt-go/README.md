@@ -21,7 +21,7 @@ JLPT N5〜N1の語彙データを提供するGoマイクロサービスです。
 ## クイックスタート
 
 ```bash
-git clone https://github.com/yourname/jlpt-quiz-api
+git clone https://github.com/wjdartmouth/jlpt-quiz-api
 cd jlpt-quiz-api
 go run main.go
 # → http://localhost:8083
@@ -236,8 +236,4 @@ func scoreForAnswer(isCorrect bool, streak int) int {
 
 ## ライセンス / License
 
-MIT License © 2025
-
----
-
-[Portfolio](https://yourname.dev) · [GitHub](https://github.com/yourname) · [Zenn](https://zenn.dev/yourname)
+MIT License
