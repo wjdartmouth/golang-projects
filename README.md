@@ -327,7 +327,7 @@ Go HTTP middleware that automatically wraps kanji in HTML responses with `<ruby>
 **Usage — as middleware**
 
 ```go
-import "github.com/yourname/furigana"
+import "github.com/wjdartmouth/furigana"
 
 mw := furigana.New(furigana.Options{
     Mode:  furigana.ModeHiragana, // ModeHiragana | ModeKatakana | ModeRomaji
