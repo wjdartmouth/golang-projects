@@ -1,0 +1,45 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+bin/
+
+# Coverage
+coverage.out
+coverage.html
+*.cover
+*.coverprofile
+profile.cov
+
+# Environment and generated site
+.env
+.env.*
+_site/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Go workspace
+go.work
+go.work.sum
+
+# Vendor (modules are committed; do not vendor locally)
+vendor/
+
+# Local `go build` output (binary named after the module directory)
+holidays-api/holidays-api
+invoice-gen/invoice-gen
+postal-api/postal-api
+jlpt-quiz-api/jlpt-quiz-api
+kintai-api/kintai-api
+price-tracker/price-tracker
+furigana/furigana

@@ -24,13 +24,15 @@ Go HTTP ミドルウェアがHTMLレスポンス中の漢字に自動的に `<ru
 ## クイックスタート / Quick Start
 
 ```bash
-git clone https://github.com/wjdartmouth/furigana
-cd furigana
+git clone https://github.com/wjdartmouth/golang-projects.git
+cd golang-projects/furigana
 go mod tidy
-go run main.go serve          # → http://localhost:8086
+go run . serve          # → http://localhost:8086
 ```
 
-ブラウザで `demo.html` を開くとインタラクティブデモが利用できます。
+`go run .` だけでは使い方が表示されます。サーバーを起動するには `serve` サブコマンドが必要です。ブラウザで `demo.html` を開くとインタラクティブデモが利用できます。
+
+このサービスはポートフォリオ用モノレポ `golang-projects` 内の `furigana/` にあります。モジュールパスは `github.com/wjdartmouth/golang-projects/furigana` です。コードは `package main` の単一ファイルなので、別モジュールとして `import` するのではなく、型をコピーするかこのディレクトリをサービスとして実行してください。
 
 ---
 
@@ -38,18 +40,18 @@ go run main.go serve          # → http://localhost:8086
 
 ### ミドルウェアとして / As Middleware
 
+このリポジトリの `furigana/main.go` は `package main` です。ミドルウェアを自分のサーバーに組み込む場合は、同ファイルの型（`Options`, `Mode`, `Level`, `Annotator` など）と `New` / `Wrap` をコピーして使います。
+
 ```go
 package main
 
-import (
-    "net/http"
-    "github.com/wjdartmouth/furigana"
-)
+import "net/http"
 
 func main() {
-    mw := furigana.New(furigana.Options{
-        Mode:  furigana.ModeHiragana, // or ModeKatakana, ModeRomaji
-        Level: furigana.LevelAll,     // or LevelJLPTN5, LevelJLPTN4, LevelAdvanced
+    // Types live in this service's package main — copy them, do not import a library path.
+    mw := New(Options{
+        Mode:  ModeHiragana, // or ModeKatakana, ModeRomaji
+        Level: LevelAll,     // or LevelJLPTN5, LevelJLPTN4, LevelAdvanced
         Debug: true,
     })
 
@@ -200,17 +202,17 @@ curl -X POST http://localhost:8086/api/v1/annotate \
 
 ```bash
 # HTMLファイルを変換
-furigana annotate -mode hiragana < input.html > output.html
+go run . annotate -mode hiragana < input.html > output.html
 
 # カタカナで出力
-furigana annotate -mode katakana < input.html > output.html
+go run . annotate -mode katakana < input.html > output.html
 
 # ローマ字で出力
-furigana annotate -mode romaji < input.html > output.html
+go run . annotate -mode romaji < input.html > output.html
 
 # 単語を検索
-furigana lookup 東京
-furigana lookup 日本語
+go run . lookup 東京
+go run . lookup 日本語
 ```
 
 ---
@@ -256,7 +258,7 @@ furigana/
 
 ## ライセンス / License
 
-MIT License © 2025
+MIT License © 2026 — see [LICENSE](../LICENSE)
 
 ---
 
