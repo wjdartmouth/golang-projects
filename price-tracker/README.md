@@ -35,18 +35,21 @@ Yahoo! Japan、楽天市場、Amazon.co.jp、メルカリの価格を自動監�
 ## クイックスタート
 
 ```bash
-git clone https://github.com/wjdartmouth/price-tracker
-cd price-tracker
+git clone https://github.com/wjdartmouth/golang-projects.git
+cd golang-projects/price-tracker
 
 # 依存関係のダウンロード
 go mod tidy
 
 # APIサーバー起動（ポート8085）
-go run main.go
+go run .
 
 # ダッシュボードを開く
 open dashboard.html
 ```
+
+このコレクション内のコピーは `price-tracker/` にあります（モジュールパス: `github.com/wjdartmouth/golang-projects/price-tracker`）。
+別リポジトリのスタンドアロン版は [wjdartmouth/price-tracker](https://github.com/wjdartmouth/price-tracker) です。
 
 ### CLIモード
 
@@ -213,6 +216,6 @@ func parsePrice(s string) (int, bool) {
 
 ## ライセンス / License
 
-MIT License © 2025
+MIT License © 2026 — see [LICENSE](../LICENSE)
 
 

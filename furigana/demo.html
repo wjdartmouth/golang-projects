@@ -1259,17 +1259,17 @@ const CODE_SNIPPETS = {
 
 <span class="kw">package</span> main
 
-<span class="kw">import</span> (
-    <span class="str">"net/http"</span>
-    <span class="str">"github.com/yourname/furigana"</span>
-)
+<span class="kw">import</span> <span class="str">"net/http"</span>
+
+<span class="cmt">// Types live in this service (package main). Copy them into</span>
+<span class="cmt">// your app, or run: go run . serve</span>
 
 <span class="kw">func</span> <span class="fn">main</span>() {
     <span class="cmt">// Create middleware with options</span>
-    mw := furigana.<span class="fn">New</span>(furigana.Options{
-        Mode:  furigana.ModeHiragana,  <span class="cmt">// or ModeKatakana, ModeRomaji</span>
-        Level: furigana.LevelAll,       <span class="cmt">// or LevelJLPTN5, LevelAdvanced …</span>
-        Debug: <span class="kw">true</span>,                   <span class="cmt">// log per-request stats</span>
+    mw := <span class="fn">New</span>(Options{
+        Mode:  ModeHiragana,  <span class="cmt">// or ModeKatakana, ModeRomaji</span>
+        Level: LevelAll,       <span class="cmt">// or LevelJLPTN5, LevelAdvanced …</span>
+        Debug: <span class="kw">true</span>,           <span class="cmt">// log per-request stats</span>
     })
 
     <span class="cmt">// Wrap any http.Handler</span>

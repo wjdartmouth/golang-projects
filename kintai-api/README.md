@@ -22,14 +22,16 @@
 ## クイックスタート
 
 ```bash
-git clone https://github.com/wjdartmouth/kintai-api
-cd kintai-api
-go run main.go
+git clone https://github.com/wjdartmouth/golang-projects.git
+cd golang-projects/kintai-api
+go run .
 # → http://localhost:8084
 
 # ダッシュボードを開く
 open dashboard.html
 ```
+
+このサービスはポートフォリオ用モノレポ `golang-projects` 内の `kintai-api/` にあります。モジュールパスは `github.com/wjdartmouth/golang-projects/kintai-api` です。
 
 ---
 
@@ -96,8 +98,8 @@ open dashboard.html
 {
   "employee_id": "emp-003",
   "type": "有給休暇",
-  "start_date": "2025-06-02",
-  "end_date": "2025-06-04",
+  "start_date": "2026-06-02",
+  "end_date": "2026-06-04",
   "days": 3,
   "reason": "夏季休暇"
 }
@@ -127,7 +129,7 @@ open dashboard.html
 {
   "employee_id": "emp-001",
   "employee_name": "田中 太郎",
-  "year": 2025,
+  "year": 2026,
   "month": 5,
   "work_days": 18,
   "scheduled_days": 20,
@@ -204,12 +206,7 @@ type Store struct {
 
 ---
 
-## 環境変数
-
-| 変数 | デフォルト | 説明 |
-|------|-----------|------|
-| `PORT` | `8084` | リッスンポート（実装時に追加可） |
-| `TZ` | システム | `Asia/Tokyo` 推奨 |
+リッスンポートはコード上 `:8084` に固定されています。Docker で動かす場合はコンテナの `TZ=Asia/Tokyo` を設定すると日付計算が日本時間になります。
 
 ---
 
@@ -224,5 +221,5 @@ docker run -p 8084:8084 -e TZ=Asia/Tokyo kintai-api
 
 ## ライセンス
 
-MIT License © 2025
+MIT License © 2026 — see [LICENSE](../LICENSE)
 
