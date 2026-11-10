@@ -1,23 +1,32 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
+//go:embed data/vocab/*.json data/kanji/*.json data/grammar/*.json
+var dataFS embed.FS
+
+//go:embed demo.html
+var demoHTML []byte
+
 // ─────────────────────────────────────────────
-//  Data Models
+//  Types
 // ─────────────────────────────────────────────
 
-// JLPTLevel represents one of N5–N1
 type JLPTLevel string
 
 const (
@@ -28,152 +37,237 @@ const (
 	N1 JLPTLevel = "N1"
 )
 
-// WordCategory groups vocabulary thematically
-type WordCategory string
+var allLevels = []JLPTLevel{N5, N4, N3, N2, N1}
+
+type QuizKind string
 
 const (
-	CatTime     WordCategory = "時間・日付"
-	CatNumbers  WordCategory = "数・量"
-	CatFamily   WordCategory = "家族・人"
-	CatBody     WordCategory = "体・健康"
-	CatFood     WordCategory = "食べ物・飲み物"
-	CatTransport WordCategory = "交通・移動"
-	CatWork     WordCategory = "仕事・学校"
-	CatNature   WordCategory = "自然・天気"
-	CatHome     WordCategory = "家・生活"
-	CatEmotion  WordCategory = "感情・状態"
-	CatVerbs    WordCategory = "動詞"
-	CatAdj      WordCategory = "形容詞"
-	CatSociety  WordCategory = "社会・文化"
-	CatAbstract WordCategory = "抽象・概念"
+	KindVocab   QuizKind = "vocab"
+	KindKanji   QuizKind = "kanji"
+	KindGrammar QuizKind = "grammar"
 )
 
-// Word is a single vocabulary entry
-type Word struct {
-	ID         string       `json:"id"`
-	Kanji      string       `json:"kanji"`       // 日本語 (may be empty for kana-only)
-	Kana       string       `json:"kana"`        // ひらがな・カタカナ
-	Romaji     string       `json:"romaji"`      // romanization
-	Meaning    string       `json:"meaning"`     // English meaning
-	MeaningJa  string       `json:"meaning_ja"`  // Japanese meaning/example
-	Level      JLPTLevel    `json:"level"`
-	Category   WordCategory `json:"category"`
-	ExampleJa  string       `json:"example_ja,omitempty"`
-	ExampleEn  string       `json:"example_en,omitempty"`
-	Tags       []string     `json:"tags,omitempty"`
-}
-
-// ─────────────────────────────────────────────
-//  Quiz Session (in-memory, per-session state)
-// ─────────────────────────────────────────────
-
-// QuizSession tracks a user's ongoing quiz
-type QuizSession struct {
-	ID          string       `json:"id"`
-	Level       JLPTLevel    `json:"level"`
-	Category    WordCategory `json:"category,omitempty"`
-	Mode        QuizMode     `json:"mode"`
-	Words       []Word       `json:"words"`      // shuffled word pool
-	CurrentIdx  int          `json:"current_idx"`
-	Score       int          `json:"score"`
-	Total       int          `json:"total"`
-	Correct     int          `json:"correct"`
-	Wrong       int          `json:"wrong"`
-	StartedAt   time.Time    `json:"started_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
-	Finished    bool         `json:"finished"`
-	WrongWords  []Word       `json:"wrong_words"`
-	StreakCount int          `json:"streak_count"`
-	BestStreak  int          `json:"best_streak"`
-}
-
-// QuizMode determines question format
 type QuizMode string
 
 const (
-	ModeKanjiToMeaning QuizMode = "kanji_to_meaning" // see kanji → pick meaning
-	ModeMeaningToKanji QuizMode = "meaning_to_kanji" // see meaning → pick kanji
-	ModeKanaToKanji    QuizMode = "kana_to_kanji"    // see kana → pick kanji
-	ModeFlashcard      QuizMode = "flashcard"        // flip-style, self-assess
+	// Vocab
+	ModeKanjiToMeaning QuizMode = "kanji_to_meaning"
+	ModeMeaningToKanji QuizMode = "meaning_to_kanji"
+	ModeKanaToKanji    QuizMode = "kana_to_kanji"
+	ModeFlashcard      QuizMode = "flashcard"
+	// Kanji
+	ModeCharToMeaning QuizMode = "character_to_meaning"
+	ModeMeaningToChar QuizMode = "meaning_to_character"
+	ModeCharToReading QuizMode = "character_to_reading"
+	// Grammar
+	ModePatternToMeaning QuizMode = "pattern_to_meaning"
+	ModeMeaningToPattern QuizMode = "meaning_to_pattern"
 )
 
-// QuizQuestion is sent to client per question
+func defaultMode(kind QuizKind) QuizMode {
+	switch kind {
+	case KindKanji:
+		return ModeCharToMeaning
+	case KindGrammar:
+		return ModePatternToMeaning
+	default:
+		return ModeKanjiToMeaning
+	}
+}
+
+func validMode(kind QuizKind, mode QuizMode) bool {
+	switch kind {
+	case KindVocab:
+		return mode == ModeKanjiToMeaning || mode == ModeMeaningToKanji || mode == ModeKanaToKanji || mode == ModeFlashcard
+	case KindKanji:
+		return mode == ModeCharToMeaning || mode == ModeMeaningToChar || mode == ModeCharToReading
+	case KindGrammar:
+		return mode == ModePatternToMeaning || mode == ModeMeaningToPattern
+	}
+	return false
+}
+
+type Example struct {
+	Ja       string `json:"ja"`
+	Furigana string `json:"furigana,omitempty"`
+	En       string `json:"en,omitempty"`
+}
+
+type Vocab struct {
+	ID       string    `json:"id"`
+	Word     string    `json:"word"`
+	Reading  string    `json:"reading"`
+	Romaji   string    `json:"romaji"`
+	Meanings []string  `json:"meanings"`
+	Level    JLPTLevel `json:"level"`
+	Pos      []string  `json:"pos,omitempty"`
+	Example  *Example  `json:"example,omitempty"`
+}
+
+func (v Vocab) MeaningText() string {
+	return strings.Join(v.Meanings, "; ")
+}
+
+func (v Vocab) HasKanji() bool {
+	return hasKanji(v.Word)
+}
+
+type Kanji struct {
+	Character string    `json:"character"`
+	Level     JLPTLevel `json:"level"`
+	Strokes   int       `json:"strokes"`
+	Onyomi    []string  `json:"onyomi,omitempty"`
+	Kunyomi   []string  `json:"kunyomi,omitempty"`
+	Meanings  []string  `json:"meanings"`
+	Words     []string  `json:"words,omitempty"`
+}
+
+func (k Kanji) ID() string { return k.Character }
+
+func (k Kanji) MeaningText() string {
+	return strings.Join(k.Meanings, "; ")
+}
+
+func (k Kanji) ReadingText() string {
+	on := strings.Join(k.Onyomi, "・")
+	kun := strings.Join(k.Kunyomi, "・")
+	switch {
+	case on != "" && kun != "":
+		return on + " / " + kun
+	case on != "":
+		return on
+	default:
+		return kun
+	}
+}
+
+type Grammar struct {
+	ID        string    `json:"id"`
+	Pattern   string    `json:"pattern"`
+	Romaji    string    `json:"romaji"`
+	Level     JLPTLevel `json:"level"`
+	Meaning   string    `json:"meaning"`
+	Formation string    `json:"formation"`
+	Notes     string    `json:"notes,omitempty"`
+	Examples  []Example `json:"examples,omitempty"`
+}
+
+func (g Grammar) FirstExample() *Example {
+	if len(g.Examples) == 0 {
+		return nil
+	}
+	for i := range g.Examples {
+		if g.Examples[i].Furigana != "" {
+			return &g.Examples[i]
+		}
+	}
+	return &g.Examples[0]
+}
+
+type QuizSession struct {
+	ID          string
+	Level       JLPTLevel
+	Kind        QuizKind
+	Mode        QuizMode
+	ItemIDs     []string
+	CurrentIdx  int
+	Score       int
+	Total       int
+	Correct     int
+	Wrong       int
+	StartedAt   time.Time
+	UpdatedAt   time.Time
+	Finished    bool
+	Misses      []Miss
+	StreakCount int
+	BestStreak  int
+	ChoiceKey   map[string]string // opaque choice token → item id (current question)
+}
+
 type QuizQuestion struct {
 	SessionID   string   `json:"session_id"`
 	QuestionNum int      `json:"question_num"`
 	Total       int      `json:"total"`
+	Kind        QuizKind `json:"kind"`
 	Mode        QuizMode `json:"mode"`
-
-	// The word being tested
-	WordID   string `json:"word_id"`
-	Prompt   string `json:"prompt"`    // what the user sees
-	PromptSub string `json:"prompt_sub,omitempty"` // secondary hint
-
-	// Multiple choice options (shuffled, includes correct)
-	Choices []Choice `json:"choices"`
-
-	// For flashcard mode
-	Answer     string `json:"answer,omitempty"`
-	AnswerSub  string `json:"answer_sub,omitempty"`
-
-	// Progress
-	Score      int `json:"score"`
-	Correct    int `json:"correct"`
-	Wrong      int `json:"wrong"`
-	Streak     int `json:"streak"`
+	ItemID      string   `json:"item_id"`
+	WordID      string   `json:"word_id"` // backward compatible alias of item_id
+	Prompt      string   `json:"prompt"`
+	PromptSub   string   `json:"prompt_sub,omitempty"`
+	Choices     []Choice `json:"choices,omitempty"`
+	Answer      string   `json:"answer,omitempty"`     // flashcard only
+	AnswerSub   string   `json:"answer_sub,omitempty"` // flashcard only
+	Score       int      `json:"score"`
+	Correct     int      `json:"correct"`
+	Wrong       int      `json:"wrong"`
+	Streak      int      `json:"streak"`
 }
 
-// Choice is one multiple-choice option
 type Choice struct {
-	ID      string `json:"id"`
-	Text    string `json:"text"`
-	Sub     string `json:"sub,omitempty"`
-	Correct bool   `json:"correct"`
+	ID   string `json:"id"`
+	Text string `json:"text"`
+	Sub  string `json:"sub,omitempty"`
 }
 
-// AnswerRequest from client
 type AnswerRequest struct {
 	SessionID string `json:"session_id"`
+	ItemID    string `json:"item_id"`
 	WordID    string `json:"word_id"`
-	ChoiceID  string `json:"choice_id"` // for MC
-	Correct   *bool  `json:"correct"`   // for flashcard self-assess
+	ChoiceID  string `json:"choice_id"`
+	Correct   *bool  `json:"correct"` // flashcard self-assess
 }
 
-// AnswerResult returned to client
 type AnswerResult struct {
-	Correct        bool   `json:"correct"`
-	CorrectAnswer  string `json:"correct_answer"`
-	CorrectSub     string `json:"correct_sub,omitempty"`
-	Explanation    string `json:"explanation,omitempty"`
-	ExampleJa      string `json:"example_ja,omitempty"`
-	ExampleEn      string `json:"example_en,omitempty"`
-	Score          int    `json:"score"`
-	CorrectCount   int    `json:"correct_count"`
-	WrongCount     int    `json:"wrong_count"`
-	Streak         int    `json:"streak"`
-	SessionFinished bool  `json:"session_finished"`
-	NextQuestion   *QuizQuestion `json:"next_question,omitempty"`
+	Correct         bool          `json:"correct"`
+	CorrectAnswer   string        `json:"correct_answer"`
+	CorrectSub      string        `json:"correct_sub,omitempty"`
+	Explanation     string        `json:"explanation,omitempty"`
+	ExampleJa       string        `json:"example_ja,omitempty"`
+	ExampleFurigana string        `json:"example_furigana,omitempty"`
+	ExampleEn       string        `json:"example_en,omitempty"`
+	Formation       string        `json:"formation,omitempty"`
+	Notes           string        `json:"notes,omitempty"`
+	Score           int           `json:"score"`
+	CorrectCount    int           `json:"correct_count"`
+	WrongCount      int           `json:"wrong_count"`
+	Streak          int           `json:"streak"`
+	SessionFinished bool          `json:"session_finished"`
+	CorrectChoiceID string        `json:"correct_choice_id,omitempty"`
+	NextQuestion    *QuizQuestion `json:"next_question,omitempty"`
 }
 
-// SessionSummary returned when quiz ends
+type Miss struct {
+	ID      string   `json:"id"`
+	Kind    QuizKind `json:"kind"`
+	Prompt  string   `json:"prompt"`
+	Answer  string   `json:"answer"`
+	Reading string   `json:"reading,omitempty"`
+}
+
 type SessionSummary struct {
-	SessionID   string    `json:"session_id"`
-	Level       JLPTLevel `json:"level"`
-	Mode        QuizMode  `json:"mode"`
-	Total       int       `json:"total"`
-	Correct     int       `json:"correct"`
-	Wrong       int       `json:"wrong"`
-	Score       int       `json:"score"`
-	Accuracy    float64   `json:"accuracy_pct"`
-	BestStreak  int       `json:"best_streak"`
-	Duration    string    `json:"duration"`
-	Grade       string    `json:"grade"`
-	WrongWords  []Word    `json:"wrong_words"`
-	StartedAt   time.Time `json:"started_at"`
+	SessionID  string    `json:"session_id"`
+	Level      JLPTLevel `json:"level"`
+	Kind       QuizKind  `json:"kind"`
+	Mode       QuizMode  `json:"mode"`
+	Total      int       `json:"total"`
+	Correct    int       `json:"correct"`
+	Wrong      int       `json:"wrong"`
+	Score      int       `json:"score"`
+	Accuracy   float64   `json:"accuracy_pct"`
+	BestStreak int       `json:"best_streak"`
+	Duration   string    `json:"duration"`
+	Grade      string    `json:"grade"`
+	Misses     []Miss    `json:"misses"`
+	WrongWords []Vocab   `json:"wrong_words,omitempty"`
+	StartedAt  time.Time `json:"started_at"`
+}
+
+type choiceSrc struct {
+	id, text, sub string
 }
 
 // ─────────────────────────────────────────────
-//  In-Memory Session Store
+//  In-memory stores
 // ─────────────────────────────────────────────
 
 type SessionStore struct {
@@ -181,9 +275,7 @@ type SessionStore struct {
 	sessions map[string]*QuizSession
 }
 
-var store = &SessionStore{
-	sessions: make(map[string]*QuizSession),
-}
+var store = &SessionStore{sessions: make(map[string]*QuizSession)}
 
 func (s *SessionStore) Get(id string) (*QuizSession, bool) {
 	s.mu.RLock()
@@ -198,190 +290,158 @@ func (s *SessionStore) Set(sess *QuizSession) {
 	s.sessions[sess.ID] = sess
 }
 
-func (s *SessionStore) Delete(id string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.sessions, id)
-}
-
 func (s *SessionStore) ActiveCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.sessions)
 }
 
+var (
+	allVocab    []Vocab
+	allKanji    []Kanji
+	allGrammar  []Grammar
+	vocabByID   = map[string]Vocab{}
+	kanjiByID   = map[string]Kanji{}
+	grammarByID = map[string]Grammar{}
+)
+
 // ─────────────────────────────────────────────
-//  Vocabulary Database
+//  Data loading
 // ─────────────────────────────────────────────
 
-var vocabulary []Word
-
-func initVocabulary() {
-	vocabulary = []Word{
-		// ── N5 ──────────────────────────────────────────────────────────
-		// Time & Dates
-		{ID: "n5-001", Kanji: "今日", Kana: "きょう", Romaji: "kyou", Meaning: "today", MeaningJa: "本日", Level: N5, Category: CatTime, ExampleJa: "今日は月曜日です。", ExampleEn: "Today is Monday."},
-		{ID: "n5-002", Kanji: "明日", Kana: "あした", Romaji: "ashita", Meaning: "tomorrow", MeaningJa: "翌日", Level: N5, Category: CatTime, ExampleJa: "明日、学校に行きます。", ExampleEn: "I will go to school tomorrow."},
-		{ID: "n5-003", Kanji: "昨日", Kana: "きのう", Romaji: "kinou", Meaning: "yesterday", MeaningJa: "前日", Level: N5, Category: CatTime},
-		{ID: "n5-004", Kanji: "毎日", Kana: "まいにち", Romaji: "mainichi", Meaning: "every day", MeaningJa: "日々", Level: N5, Category: CatTime},
-		{ID: "n5-005", Kanji: "今年", Kana: "ことし", Romaji: "kotoshi", Meaning: "this year", MeaningJa: "本年", Level: N5, Category: CatTime},
-		{ID: "n5-006", Kanji: "来年", Kana: "らいねん", Romaji: "rainen", Meaning: "next year", MeaningJa: "翌年", Level: N5, Category: CatTime},
-		// Numbers
-		{ID: "n5-007", Kanji: "百", Kana: "ひゃく", Romaji: "hyaku", Meaning: "hundred", MeaningJa: "100", Level: N5, Category: CatNumbers},
-		{ID: "n5-008", Kanji: "千", Kana: "せん", Romaji: "sen", Meaning: "thousand", MeaningJa: "1,000", Level: N5, Category: CatNumbers},
-		{ID: "n5-009", Kanji: "万", Kana: "まん", Romaji: "man", Meaning: "ten thousand", MeaningJa: "10,000", Level: N5, Category: CatNumbers},
-		// Family
-		{ID: "n5-010", Kanji: "母", Kana: "はは", Romaji: "haha", Meaning: "mother (own)", MeaningJa: "自分の母親", Level: N5, Category: CatFamily, ExampleJa: "母は料理が上手です。", ExampleEn: "My mother is a good cook."},
-		{ID: "n5-011", Kanji: "父", Kana: "ちち", Romaji: "chichi", Meaning: "father (own)", MeaningJa: "自分の父親", Level: N5, Category: CatFamily},
-		{ID: "n5-012", Kanji: "兄", Kana: "あに", Romaji: "ani", Meaning: "older brother (own)", MeaningJa: "自分の兄", Level: N5, Category: CatFamily},
-		{ID: "n5-013", Kanji: "姉", Kana: "あね", Romaji: "ane", Meaning: "older sister (own)", MeaningJa: "自分の姉", Level: N5, Category: CatFamily},
-		// Food
-		{ID: "n5-014", Kanji: "水", Kana: "みず", Romaji: "mizu", Meaning: "water", MeaningJa: "水分", Level: N5, Category: CatFood},
-		{ID: "n5-015", Kanji: "肉", Kana: "にく", Romaji: "niku", Meaning: "meat", MeaningJa: "肉類", Level: N5, Category: CatFood},
-		{ID: "n5-016", Kanji: "魚", Kana: "さかな", Romaji: "sakana", Meaning: "fish", MeaningJa: "魚類", Level: N5, Category: CatFood},
-		{ID: "n5-017", Kanji: "野菜", Kana: "やさい", Romaji: "yasai", Meaning: "vegetables", MeaningJa: "野菜類", Level: N5, Category: CatFood},
-		// Verbs
-		{ID: "n5-018", Kanji: "食べる", Kana: "たべる", Romaji: "taberu", Meaning: "to eat", MeaningJa: "食事する", Level: N5, Category: CatVerbs},
-		{ID: "n5-019", Kanji: "飲む", Kana: "のむ", Romaji: "nomu", Meaning: "to drink", MeaningJa: "飲用する", Level: N5, Category: CatVerbs},
-		{ID: "n5-020", Kanji: "行く", Kana: "いく", Romaji: "iku", Meaning: "to go", MeaningJa: "移動する", Level: N5, Category: CatVerbs},
-		{ID: "n5-021", Kanji: "来る", Kana: "くる", Romaji: "kuru", Meaning: "to come", MeaningJa: "到来する", Level: N5, Category: CatVerbs},
-		{ID: "n5-022", Kanji: "見る", Kana: "みる", Romaji: "miru", Meaning: "to see / watch", MeaningJa: "視る", Level: N5, Category: CatVerbs},
-		{ID: "n5-023", Kanji: "聞く", Kana: "きく", Romaji: "kiku", Meaning: "to listen / ask", MeaningJa: "聴く・尋ねる", Level: N5, Category: CatVerbs},
-		{ID: "n5-024", Kanji: "話す", Kana: "はなす", Romaji: "hanasu", Meaning: "to speak", MeaningJa: "会話する", Level: N5, Category: CatVerbs},
-		{ID: "n5-025", Kanji: "書く", Kana: "かく", Romaji: "kaku", Meaning: "to write", MeaningJa: "記す", Level: N5, Category: CatVerbs},
-		{ID: "n5-026", Kanji: "読む", Kana: "よむ", Romaji: "yomu", Meaning: "to read", MeaningJa: "読書する", Level: N5, Category: CatVerbs},
-		{ID: "n5-027", Kanji: "買う", Kana: "かう", Romaji: "kau", Meaning: "to buy", MeaningJa: "購入する", Level: N5, Category: CatVerbs},
-		{ID: "n5-028", Kanji: "売る", Kana: "うる", Romaji: "uru", Meaning: "to sell", MeaningJa: "販売する", Level: N5, Category: CatVerbs},
-		// Adjectives
-		{ID: "n5-029", Kanji: "大きい", Kana: "おおきい", Romaji: "ookii", Meaning: "big / large", MeaningJa: "大型の", Level: N5, Category: CatAdj},
-		{ID: "n5-030", Kanji: "小さい", Kana: "ちいさい", Romaji: "chiisai", Meaning: "small / little", MeaningJa: "小型の", Level: N5, Category: CatAdj},
-		{ID: "n5-031", Kanji: "新しい", Kana: "あたらしい", Romaji: "atarashii", Meaning: "new", MeaningJa: "新品の", Level: N5, Category: CatAdj},
-		{ID: "n5-032", Kanji: "古い", Kana: "ふるい", Romaji: "furui", Meaning: "old (thing)", MeaningJa: "年月を経た", Level: N5, Category: CatAdj},
-		{ID: "n5-033", Kanji: "高い", Kana: "たかい", Romaji: "takai", Meaning: "tall / expensive", MeaningJa: "高価・高さがある", Level: N5, Category: CatAdj},
-		{ID: "n5-034", Kanji: "安い", Kana: "やすい", Romaji: "yasui", Meaning: "cheap / inexpensive", MeaningJa: "低価格の", Level: N5, Category: CatAdj},
-
-		// ── N4 ──────────────────────────────────────────────────────────
-		{ID: "n4-001", Kanji: "経験", Kana: "けいけん", Romaji: "keiken", Meaning: "experience", MeaningJa: "体験・実経験", Level: N4, Category: CatWork, ExampleJa: "仕事の経験が三年あります。", ExampleEn: "I have three years of work experience."},
-		{ID: "n4-002", Kanji: "練習", Kana: "れんしゅう", Romaji: "renshuu", Meaning: "practice / drill", MeaningJa: "反復練習", Level: N4, Category: CatWork},
-		{ID: "n4-003", Kanji: "準備", Kana: "じゅんび", Romaji: "junbi", Meaning: "preparation", MeaningJa: "用意・支度", Level: N4, Category: CatWork},
-		{ID: "n4-004", Kanji: "連絡", Kana: "れんらく", Romaji: "renraku", Meaning: "contact / communication", MeaningJa: "通知・通信", Level: N4, Category: CatWork},
-		{ID: "n4-005", Kanji: "予約", Kana: "よやく", Romaji: "yoyaku", Meaning: "reservation / booking", MeaningJa: "事前予約", Level: N4, Category: CatWork},
-		{ID: "n4-006", Kanji: "運動", Kana: "うんどう", Romaji: "undou", Meaning: "exercise / sport", MeaningJa: "身体活動", Level: N4, Category: CatBody},
-		{ID: "n4-007", Kanji: "病気", Kana: "びょうき", Romaji: "byouki", Meaning: "illness / sickness", MeaningJa: "疾患", Level: N4, Category: CatBody},
-		{ID: "n4-008", Kanji: "薬", Kana: "くすり", Romaji: "kusuri", Meaning: "medicine / drug", MeaningJa: "医薬品", Level: N4, Category: CatBody},
-		{ID: "n4-009", Kanji: "旅行", Kana: "りょこう", Romaji: "ryokou", Meaning: "travel / trip", MeaningJa: "旅・旅行", Level: N4, Category: CatTransport},
-		{ID: "n4-010", Kanji: "出発", Kana: "しゅっぱつ", Romaji: "shuppatsu", Meaning: "departure", MeaningJa: "出発・旅立ち", Level: N4, Category: CatTransport},
-		{ID: "n4-011", Kanji: "到着", Kana: "とうちゃく", Romaji: "touchaku", Meaning: "arrival", MeaningJa: "到達・着", Level: N4, Category: CatTransport},
-		{ID: "n4-012", Kanji: "乗る", Kana: "のる", Romaji: "noru", Meaning: "to ride / board", MeaningJa: "乗車・搭乗する", Level: N4, Category: CatVerbs},
-		{ID: "n4-013", Kanji: "降りる", Kana: "おりる", Romaji: "oriru", Meaning: "to get off / descend", MeaningJa: "降車する", Level: N4, Category: CatVerbs},
-		{ID: "n4-014", Kanji: "変える", Kana: "かえる", Romaji: "kaeru", Meaning: "to change (something)", MeaningJa: "変更する", Level: N4, Category: CatVerbs},
-		{ID: "n4-015", Kanji: "決める", Kana: "きめる", Romaji: "kimeru", Meaning: "to decide", MeaningJa: "決定する", Level: N4, Category: CatVerbs},
-		{ID: "n4-016", Kanji: "続ける", Kana: "つづける", Romaji: "tsuzukeru", Meaning: "to continue", MeaningJa: "継続する", Level: N4, Category: CatVerbs},
-		{ID: "n4-017", Kanji: "忙しい", Kana: "いそがしい", Romaji: "isogashii", Meaning: "busy", MeaningJa: "多忙な", Level: N4, Category: CatAdj},
-		{ID: "n4-018", Kanji: "難しい", Kana: "むずかしい", Romaji: "muzukashii", Meaning: "difficult", MeaningJa: "困難な", Level: N4, Category: CatAdj},
-		{ID: "n4-019", Kanji: "危ない", Kana: "あぶない", Romaji: "abunai", Meaning: "dangerous", MeaningJa: "危険な", Level: N4, Category: CatAdj},
-		{ID: "n4-020", Kanji: "丁寧", Kana: "ていねい", Romaji: "teinei", Meaning: "polite / careful", MeaningJa: "礼儀正しい", Level: N4, Category: CatSociety},
-
-		// ── N3 ──────────────────────────────────────────────────────────
-		{ID: "n3-001", Kanji: "意見", Kana: "いけん", Romaji: "iken", Meaning: "opinion / view", MeaningJa: "考え・見解", Level: N3, Category: CatAbstract, ExampleJa: "あなたの意見を聞かせてください。", ExampleEn: "Please share your opinion."},
-		{ID: "n3-002", Kanji: "理由", Kana: "りゆう", Romaji: "riyuu", Meaning: "reason / cause", MeaningJa: "原因・わけ", Level: N3, Category: CatAbstract},
-		{ID: "n3-003", Kanji: "結果", Kana: "けっか", Romaji: "kekka", Meaning: "result / outcome", MeaningJa: "成果・結末", Level: N3, Category: CatAbstract},
-		{ID: "n3-004", Kanji: "影響", Kana: "えいきょう", Romaji: "eikyou", Meaning: "influence / effect", MeaningJa: "作用・影響力", Level: N3, Category: CatAbstract},
-		{ID: "n3-005", Kanji: "問題", Kana: "もんだい", Romaji: "mondai", Meaning: "problem / issue", MeaningJa: "課題・難問", Level: N3, Category: CatAbstract},
-		{ID: "n3-006", Kanji: "解決", Kana: "かいけつ", Romaji: "kaiketsu", Meaning: "solution / resolution", MeaningJa: "問題を解くこと", Level: N3, Category: CatAbstract},
-		{ID: "n3-007", Kanji: "関係", Kana: "かんけい", Romaji: "kankei", Meaning: "relationship / connection", MeaningJa: "つながり・関連", Level: N3, Category: CatSociety},
-		{ID: "n3-008", Kanji: "社会", Kana: "しゃかい", Romaji: "shakai", Meaning: "society", MeaningJa: "世の中・社会全体", Level: N3, Category: CatSociety},
-		{ID: "n3-009", Kanji: "文化", Kana: "ぶんか", Romaji: "bunka", Meaning: "culture", MeaningJa: "文明・慣習", Level: N3, Category: CatSociety},
-		{ID: "n3-010", Kanji: "技術", Kana: "ぎじゅつ", Romaji: "gijutsu", Meaning: "technology / skill", MeaningJa: "テクノロジー・技巧", Level: N3, Category: CatWork},
-		{ID: "n3-011", Kanji: "失敗", Kana: "しっぱい", Romaji: "shippai", Meaning: "failure / mistake", MeaningJa: "やり損ない", Level: N3, Category: CatEmotion},
-		{ID: "n3-012", Kanji: "成功", Kana: "せいこう", Romaji: "seikou", Meaning: "success", MeaningJa: "うまくいくこと", Level: N3, Category: CatEmotion},
-		{ID: "n3-013", Kanji: "感謝", Kana: "かんしゃ", Romaji: "kansha", Meaning: "gratitude / thanks", MeaningJa: "ありがたく思う気持ち", Level: N3, Category: CatEmotion},
-		{ID: "n3-014", Kanji: "心配", Kana: "しんぱい", Romaji: "shinpai", Meaning: "worry / concern", MeaningJa: "不安・懸念", Level: N3, Category: CatEmotion},
-		{ID: "n3-015", Kanji: "驚く", Kana: "おどろく", Romaji: "odoroku", Meaning: "to be surprised", MeaningJa: "びっくりする", Level: N3, Category: CatVerbs},
-		{ID: "n3-016", Kanji: "集める", Kana: "あつめる", Romaji: "atsumeru", Meaning: "to collect / gather", MeaningJa: "集積する", Level: N3, Category: CatVerbs},
-		{ID: "n3-017", Kanji: "比べる", Kana: "くらべる", Romaji: "kuraberu", Meaning: "to compare", MeaningJa: "対比する", Level: N3, Category: CatVerbs},
-		{ID: "n3-018", Kanji: "考える", Kana: "かんがえる", Romaji: "kangaeru", Meaning: "to think / consider", MeaningJa: "思考する", Level: N3, Category: CatVerbs},
-		{ID: "n3-019", Kanji: "重要", Kana: "じゅうよう", Romaji: "juuyou", Meaning: "important / significant", MeaningJa: "大切・重大", Level: N3, Category: CatAdj},
-		{ID: "n3-020", Kanji: "複雑", Kana: "ふくざつ", Romaji: "fukuzatsu", Meaning: "complex / complicated", MeaningJa: "入り組んでいる", Level: N3, Category: CatAdj},
-
-		// ── N2 ──────────────────────────────────────────────────────────
-		{ID: "n2-001", Kanji: "義務", Kana: "ぎむ", Romaji: "gimu", Meaning: "duty / obligation", MeaningJa: "果たさなければならないこと", Level: N2, Category: CatSociety},
-		{ID: "n2-002", Kanji: "権利", Kana: "けんり", Romaji: "kenri", Meaning: "right / entitlement", MeaningJa: "正当な資格・権限", Level: N2, Category: CatSociety},
-		{ID: "n2-003", Kanji: "契約", Kana: "けいやく", Romaji: "keiyaku", Meaning: "contract / agreement", MeaningJa: "法的な合意", Level: N2, Category: CatWork},
-		{ID: "n2-004", Kanji: "収入", Kana: "しゅうにゅう", Romaji: "shuunyuu", Meaning: "income / revenue", MeaningJa: "所得・稼ぎ", Level: N2, Category: CatWork},
-		{ID: "n2-005", Kanji: "投資", Kana: "とうし", Romaji: "toushi", Meaning: "investment", MeaningJa: "利益を目的とした出資", Level: N2, Category: CatWork},
-		{ID: "n2-006", Kanji: "環境", Kana: "かんきょう", Romaji: "kankyou", Meaning: "environment", MeaningJa: "周囲の状況・自然環境", Level: N2, Category: CatNature},
-		{ID: "n2-007", Kanji: "資源", Kana: "しげん", Romaji: "shigen", Meaning: "resources", MeaningJa: "活用できる素材・エネルギー", Level: N2, Category: CatNature},
-		{ID: "n2-008", Kanji: "維持", Kana: "いじ", Romaji: "iji", Meaning: "maintenance / upkeep", MeaningJa: "現状を保つこと", Level: N2, Category: CatAbstract},
-		{ID: "n2-009", Kanji: "促進", Kana: "そくしん", Romaji: "sokushin", Meaning: "promotion / acceleration", MeaningJa: "物事を進めること", Level: N2, Category: CatAbstract},
-		{ID: "n2-010", Kanji: "把握", Kana: "はあく", Romaji: "haaku", Meaning: "grasp / understanding", MeaningJa: "状況を正確につかむ", Level: N2, Category: CatAbstract},
-		{ID: "n2-011", Kanji: "検討", Kana: "けんとう", Romaji: "kentou", Meaning: "consideration / review", MeaningJa: "詳しく調べ考えること", Level: N2, Category: CatAbstract},
-		{ID: "n2-012", Kanji: "指摘", Kana: "してき", Romaji: "shiteki", Meaning: "point out / indicate", MeaningJa: "問題点などを示す", Level: N2, Category: CatVerbs},
-		{ID: "n2-013", Kanji: "批判", Kana: "ひはん", Romaji: "hihan", Meaning: "criticism / critique", MeaningJa: "欠点などを論じること", Level: N2, Category: CatAbstract},
-		{ID: "n2-014", Kanji: "議論", Kana: "ぎろん", Romaji: "giron", Meaning: "debate / argument", MeaningJa: "意見を出し合うこと", Level: N2, Category: CatAbstract},
-		{ID: "n2-015", Kanji: "矛盾", Kana: "むじゅん", Romaji: "mujun", Meaning: "contradiction", MeaningJa: "前後が食い違うこと", Level: N2, Category: CatAbstract},
-
-		// ── N1 ──────────────────────────────────────────────────────────
-		{ID: "n1-001", Kanji: "概念", Kana: "がいねん", Romaji: "gainen", Meaning: "concept / notion", MeaningJa: "一般的な考え方・抽象的な意味", Level: N1, Category: CatAbstract},
-		{ID: "n1-002", Kanji: "抽象", Kana: "ちゅうしょう", Romaji: "chuushou", Meaning: "abstraction", MeaningJa: "具体性をはぶいた考え", Level: N1, Category: CatAbstract},
-		{ID: "n1-003", Kanji: "倫理", Kana: "りんり", Romaji: "rinri", Meaning: "ethics / morality", MeaningJa: "道徳的な原則", Level: N1, Category: CatSociety},
-		{ID: "n1-004", Kanji: "哲学", Kana: "てつがく", Romaji: "tetsugaku", Meaning: "philosophy", MeaningJa: "存在・知識・価値を探求する学問", Level: N1, Category: CatAbstract},
-		{ID: "n1-005", Kanji: "妥協", Kana: "だきょう", Romaji: "dakyou", Meaning: "compromise", MeaningJa: "互いに譲り合って解決すること", Level: N1, Category: CatAbstract},
-		{ID: "n1-006", Kanji: "慣習", Kana: "かんしゅう", Romaji: "kanshuu", Meaning: "custom / convention", MeaningJa: "長く続いてきた習わし", Level: N1, Category: CatSociety},
-		{ID: "n1-007", Kanji: "象徴", Kana: "しょうちょう", Romaji: "shouchou", Meaning: "symbol / emblem", MeaningJa: "何かを表すしるし", Level: N1, Category: CatAbstract},
-		{ID: "n1-008", Kanji: "矜持", Kana: "きょうじ", Romaji: "kyouji", Meaning: "pride / dignity", MeaningJa: "自分を誇りに思う気持ち", Level: N1, Category: CatEmotion},
-		{ID: "n1-009", Kanji: "逡巡", Kana: "しゅんじゅん", Romaji: "shunjun", Meaning: "hesitation / indecision", MeaningJa: "ためらい・決断できないこと", Level: N1, Category: CatEmotion},
-		{ID: "n1-010", Kanji: "忖度", Kana: "そんたく", Romaji: "sontaku", Meaning: "reading the room / inferring wishes", MeaningJa: "相手の気持ちを推し量ること", Level: N1, Category: CatSociety, ExampleJa: "上司の意向を忖度する。", ExampleEn: "To read what the boss wants without being told."},
-		{ID: "n1-011", Kanji: "斟酌", Kana: "しんしゃく", Romaji: "shinshaku", Meaning: "consideration / discretion", MeaningJa: "事情をくんで手加減すること", Level: N1, Category: CatAbstract},
-		{ID: "n1-012", Kanji: "脆弱", Kana: "ぜいじゃく", Romaji: "zeijaku", Meaning: "fragile / vulnerable", MeaningJa: "もろく弱い状態", Level: N1, Category: CatAdj},
-		{ID: "n1-013", Kanji: "醸成", Kana: "じょうせい", Romaji: "jousei", Meaning: "to cultivate / foster (atmosphere)", MeaningJa: "雰囲気・状況を作り上げること", Level: N1, Category: CatVerbs},
-		{ID: "n1-014", Kanji: "顕著", Kana: "けんちょ", Romaji: "kencho", Meaning: "remarkable / conspicuous", MeaningJa: "はっきりと目立つ様子", Level: N1, Category: CatAdj},
-		{ID: "n1-015", Kanji: "払拭", Kana: "ふっしょく", Romaji: "fusshoku", Meaning: "to dispel / wipe away", MeaningJa: "疑念・不安などを完全に取り除く", Level: N1, Category: CatVerbs},
-	}
-
-	// Assign sequential IDs for cleanliness (already set inline, but ensure uniqueness)
-	seen := map[string]bool{}
-	for i, w := range vocabulary {
-		if seen[w.ID] {
-			vocabulary[i].ID = fmt.Sprintf("%s-%03d", strings.ToLower(string(w.Level)), i)
+func loadData() {
+	var vocab, kanji, grammar int
+	for _, lv := range []string{"n5", "n4", "n3", "n2", "n1"} {
+		v := mustLoad[[]Vocab](fmt.Sprintf("data/vocab/%s.json", lv))
+		for _, item := range v {
+			if item.ID == "" || item.Word == "" {
+				continue
+			}
+			allVocab = append(allVocab, item)
+			vocabByID[item.ID] = item
 		}
-		seen[w.ID] = true
-	}
+		vocab += len(v)
 
-	log.Printf("語彙データ読み込み完了: %d 語", len(vocabulary))
+		k := mustLoad[[]Kanji](fmt.Sprintf("data/kanji/%s.json", lv))
+		for _, item := range k {
+			if item.Character == "" {
+				continue
+			}
+			allKanji = append(allKanji, item)
+			kanjiByID[item.Character] = item
+		}
+		kanji += len(k)
+
+		g := mustLoad[[]Grammar](fmt.Sprintf("data/grammar/%s.json", lv))
+		for _, item := range g {
+			if item.ID == "" {
+				continue
+			}
+			allGrammar = append(allGrammar, item)
+			grammarByID[item.ID] = item
+		}
+		grammar += len(g)
+	}
+	if vocab == 0 || kanji == 0 || grammar == 0 {
+		log.Fatalf("OpenJLPT data loaded empty (vocab=%d kanji=%d grammar=%d)", vocab, kanji, grammar)
+	}
+	log.Printf("OpenJLPT data loaded: %d vocab, %d kanji, %d grammar", vocab, kanji, grammar)
 }
 
-// ─────────────────────────────────────────────
-//  Filtering helpers
-// ─────────────────────────────────────────────
+func mustLoad[T any](path string) T {
+	var zero T
+	b, err := dataFS.ReadFile(path)
+	if err != nil {
+		log.Fatalf("required OpenJLPT data file missing or unreadable: %s: %v", path, err)
+	}
+	var v T
+	if err := json.Unmarshal(b, &v); err != nil {
+		log.Fatalf("required OpenJLPT data file is invalid JSON: %s: %v", path, err)
+	}
+	switch items := any(v).(type) {
+	case []Vocab:
+		if len(items) == 0 {
+			log.Fatalf("required OpenJLPT data file is empty: %s", path)
+		}
+	case []Kanji:
+		if len(items) == 0 {
+			log.Fatalf("required OpenJLPT data file is empty: %s", path)
+		}
+	case []Grammar:
+		if len(items) == 0 {
+			log.Fatalf("required OpenJLPT data file is empty: %s", path)
+		}
+	}
+	_ = zero
+	return v
+}
 
-func filterWords(level JLPTLevel, category WordCategory) []Word {
-	var result []Word
-	for _, w := range vocabulary {
+func hasKanji(s string) bool {
+	for _, r := range s {
+		if unicode.Is(unicode.Han, r) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeLevel(s string) JLPTLevel {
+	s = strings.ToUpper(strings.TrimSpace(s))
+	switch JLPTLevel(s) {
+	case N5, N4, N3, N2, N1:
+		return JLPTLevel(s)
+	}
+	return ""
+}
+
+func filterVocab(level JLPTLevel, pos string) []Vocab {
+	var out []Vocab
+	for _, w := range allVocab {
 		if level != "" && w.Level != level {
 			continue
 		}
-		if category != "" && w.Category != category {
+		if pos != "" {
+			ok := false
+			for _, p := range w.Pos {
+				if p == pos {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				continue
+			}
+		}
+		out = append(out, w)
+	}
+	return out
+}
+
+func filterKanji(level JLPTLevel) []Kanji {
+	var out []Kanji
+	for _, k := range allKanji {
+		if level != "" && k.Level != level {
 			continue
 		}
-		result = append(result, w)
+		out = append(out, k)
 	}
-	return result
+	return out
 }
 
-func wordsByID(id string) (Word, bool) {
-	for _, w := range vocabulary {
-		if w.ID == id {
-			return w, true
+func filterGrammar(level JLPTLevel) []Grammar {
+	var out []Grammar
+	for _, g := range allGrammar {
+		if level != "" && g.Level != level {
+			continue
 		}
+		out = append(out, g)
 	}
-	return Word{}, false
+	return out
 }
 
-// shuffle returns a shuffled copy
-func shuffle(words []Word) []Word {
-	cp := make([]Word, len(words))
-	copy(cp, words)
+func shuffle[T any](in []T) []T {
+	cp := make([]T, len(in))
+	copy(cp, in)
 	rand.Shuffle(len(cp), func(i, j int) { cp[i], cp[j] = cp[j], cp[i] })
 	return cp
 }
@@ -390,153 +450,248 @@ func shuffle(words []Word) []Word {
 //  Quiz engine
 // ─────────────────────────────────────────────
 
+func vocabPoolForMode(level JLPTLevel, mode QuizMode) []Vocab {
+	pool := filterVocab(level, "")
+	if mode == ModeKanaToKanji || mode == ModeMeaningToKanji {
+		var withKanji []Vocab
+		for _, w := range pool {
+			if w.HasKanji() {
+				withKanji = append(withKanji, w)
+			}
+		}
+		if len(withKanji) >= 4 {
+			return withKanji
+		}
+	}
+	return pool
+}
+
 func buildQuestion(sess *QuizSession) *QuizQuestion {
-	if sess.CurrentIdx >= len(sess.Words) {
+	if sess.CurrentIdx >= len(sess.ItemIDs) {
 		return nil
 	}
-	word := sess.Words[sess.CurrentIdx]
-
+	id := sess.ItemIDs[sess.CurrentIdx]
 	q := &QuizQuestion{
 		SessionID:   sess.ID,
 		QuestionNum: sess.CurrentIdx + 1,
 		Total:       sess.Total,
+		Kind:        sess.Kind,
 		Mode:        sess.Mode,
-		WordID:      word.ID,
+		ItemID:      id,
+		WordID:      id,
 		Score:       sess.Score,
 		Correct:     sess.Correct,
 		Wrong:       sess.Wrong,
 		Streak:      sess.StreakCount,
 	}
 
-	switch sess.Mode {
-	case ModeKanjiToMeaning:
-		if word.Kanji != "" {
-			q.Prompt = word.Kanji
-			q.PromptSub = word.Kana
-		} else {
-			q.Prompt = word.Kana
-		}
-		q.Choices = buildChoices(word, "meaning", sess.Words)
-
-	case ModeMeaningToKanji:
-		q.Prompt = word.Meaning
-		if word.Kanji != "" {
-			q.Choices = buildChoices(word, "kanji", sess.Words)
-		} else {
-			q.Choices = buildChoices(word, "kana", sess.Words)
-		}
-
-	case ModeKanaToKanji:
-		q.Prompt = word.Kana
-		q.PromptSub = word.Romaji
-		if word.Kanji != "" {
-			q.Choices = buildChoices(word, "kanji", sess.Words)
-		} else {
-			q.Choices = buildChoices(word, "meaning", sess.Words)
-		}
-
-	case ModeFlashcard:
-		if word.Kanji != "" {
-			q.Prompt = word.Kanji
-			q.PromptSub = word.Kana
-		} else {
-			q.Prompt = word.Kana
-		}
-		q.Answer = word.Meaning
-		q.AnswerSub = word.MeaningJa
+	switch sess.Kind {
+	case KindVocab:
+		buildVocabQuestion(q, sess, id)
+	case KindKanji:
+		buildKanjiQuestion(q, sess, id)
+	case KindGrammar:
+		buildGrammarQuestion(q, sess, id)
 	}
-
 	return q
 }
 
-func buildChoices(correct Word, field string, pool []Word) []Choice {
-	correctChoice := Choice{
-		ID:      correct.ID,
-		Correct: true,
+func buildVocabQuestion(q *QuizQuestion, sess *QuizSession, id string) {
+	word, ok := vocabByID[id]
+	if !ok {
+		return
 	}
-	switch field {
-	case "meaning":
-		correctChoice.Text = correct.Meaning
-		correctChoice.Sub = correct.MeaningJa
-	case "kanji":
-		correctChoice.Text = correct.Kanji
-		correctChoice.Sub = correct.Kana
-	case "kana":
-		correctChoice.Text = correct.Kana
-		correctChoice.Sub = correct.Romaji
+	switch sess.Mode {
+	case ModeKanjiToMeaning:
+		q.Prompt = word.Word
+		q.PromptSub = word.Reading
+		q.Choices = buildChoices(sess, choiceSrc{id: word.ID, text: word.MeaningText()}, vocabMeaningChoices(sess.ItemIDs), vocabMeaningChoices(vocabIDs(allVocab)))
+	case ModeMeaningToKanji:
+		q.Prompt = word.MeaningText()
+		if word.HasKanji() {
+			q.Choices = buildChoices(sess, choiceSrc{id: word.ID, text: word.Word, sub: word.Reading}, vocabWordChoices(sess.ItemIDs, true), vocabWordChoices(vocabIDs(allVocab), true))
+		} else {
+			q.Choices = buildChoices(sess, choiceSrc{id: word.ID, text: word.Word, sub: word.Romaji}, vocabWordChoices(sess.ItemIDs, false), vocabWordChoices(vocabIDs(allVocab), false))
+		}
+	case ModeKanaToKanji:
+		q.Prompt = word.Reading
+		q.PromptSub = word.Romaji
+		if word.HasKanji() {
+			q.Choices = buildChoices(sess, choiceSrc{id: word.ID, text: word.Word, sub: word.Reading}, vocabWordChoices(sess.ItemIDs, true), vocabWordChoices(vocabIDs(allVocab), true))
+		} else {
+			q.Choices = buildChoices(sess, choiceSrc{id: word.ID, text: word.MeaningText()}, vocabMeaningChoices(sess.ItemIDs), vocabMeaningChoices(vocabIDs(allVocab)))
+		}
+	case ModeFlashcard:
+		q.Prompt = word.Word
+		q.PromptSub = word.Reading
+		q.Answer = word.MeaningText()
+		if word.Romaji != "" {
+			q.AnswerSub = word.Romaji
+		}
 	}
+}
 
-	// Pick 3 distractors from same level, different word
-	distractors := []Choice{}
-	shuffled := shuffle(pool)
-	for _, w := range shuffled {
-		if w.ID == correct.ID {
+func buildKanjiQuestion(q *QuizQuestion, sess *QuizSession, id string) {
+	k, ok := kanjiByID[id]
+	if !ok {
+		return
+	}
+	switch sess.Mode {
+	case ModeCharToMeaning:
+		q.Prompt = k.Character
+		if k.Strokes > 0 {
+			q.PromptSub = fmt.Sprintf("%d strokes", k.Strokes)
+		}
+		q.Choices = buildChoices(sess, choiceSrc{id: k.Character, text: k.MeaningText()}, kanjiMeaningChoices(sess.ItemIDs), kanjiMeaningChoices(kanjiIDs(allKanji)))
+	case ModeMeaningToChar:
+		q.Prompt = k.MeaningText()
+		q.Choices = buildChoices(sess, choiceSrc{id: k.Character, text: k.Character, sub: k.ReadingText()}, kanjiCharChoices(sess.ItemIDs), kanjiCharChoices(kanjiIDs(allKanji)))
+	case ModeCharToReading:
+		q.Prompt = k.Character
+		q.PromptSub = k.MeaningText()
+		q.Choices = buildChoices(sess, choiceSrc{id: k.Character, text: k.ReadingText()}, kanjiReadingChoices(sess.ItemIDs), kanjiReadingChoices(kanjiIDs(allKanji)))
+	}
+}
+
+func buildGrammarQuestion(q *QuizQuestion, sess *QuizSession, id string) {
+	g, ok := grammarByID[id]
+	if !ok {
+		return
+	}
+	switch sess.Mode {
+	case ModePatternToMeaning:
+		q.Prompt = g.Pattern
+		q.PromptSub = g.Romaji
+		q.Choices = buildChoices(sess, choiceSrc{id: g.ID, text: g.Meaning}, grammarMeaningChoices(sess.ItemIDs), grammarMeaningChoices(grammarIDs(allGrammar)))
+	case ModeMeaningToPattern:
+		q.Prompt = g.Meaning
+		q.Choices = buildChoices(sess, choiceSrc{id: g.ID, text: g.Pattern, sub: g.Romaji}, grammarPatternChoices(sess.ItemIDs), grammarPatternChoices(grammarIDs(allGrammar)))
+	}
+}
+
+func vocabIDs(items []Vocab) []string {
+	ids := make([]string, len(items))
+	for i, w := range items {
+		ids[i] = w.ID
+	}
+	return ids
+}
+func kanjiIDs(items []Kanji) []string {
+	ids := make([]string, len(items))
+	for i, k := range items {
+		ids[i] = k.Character
+	}
+	return ids
+}
+func grammarIDs(items []Grammar) []string {
+	ids := make([]string, len(items))
+	for i, g := range items {
+		ids[i] = g.ID
+	}
+	return ids
+}
+
+func vocabMeaningChoices(ids []string) []choiceSrc {
+	out := make([]choiceSrc, 0, len(ids))
+	for _, id := range ids {
+		if w, ok := vocabByID[id]; ok && w.MeaningText() != "" {
+			out = append(out, choiceSrc{id: w.ID, text: w.MeaningText()})
+		}
+	}
+	return out
+}
+func vocabWordChoices(ids []string, requireKanji bool) []choiceSrc {
+	out := make([]choiceSrc, 0, len(ids))
+	for _, id := range ids {
+		w, ok := vocabByID[id]
+		if !ok || w.Word == "" {
 			continue
 		}
-		d := Choice{ID: w.ID, Correct: false}
-		switch field {
-		case "meaning":
-			d.Text = w.Meaning
-			d.Sub = w.MeaningJa
-		case "kanji":
-			if w.Kanji == "" {
-				continue
-			}
-			d.Text = w.Kanji
-			d.Sub = w.Kana
-		case "kana":
-			d.Text = w.Kana
-			d.Sub = w.Romaji
-		}
-		if d.Text == "" || d.Text == correctChoice.Text {
+		if requireKanji && !w.HasKanji() {
 			continue
 		}
-		distractors = append(distractors, d)
-		if len(distractors) == 3 {
-			break
+		out = append(out, choiceSrc{id: w.ID, text: w.Word, sub: w.Reading})
+	}
+	return out
+}
+func kanjiMeaningChoices(ids []string) []choiceSrc {
+	out := make([]choiceSrc, 0, len(ids))
+	for _, id := range ids {
+		if k, ok := kanjiByID[id]; ok && k.MeaningText() != "" {
+			out = append(out, choiceSrc{id: k.Character, text: k.MeaningText()})
 		}
 	}
+	return out
+}
+func kanjiCharChoices(ids []string) []choiceSrc {
+	out := make([]choiceSrc, 0, len(ids))
+	for _, id := range ids {
+		if k, ok := kanjiByID[id]; ok {
+			out = append(out, choiceSrc{id: k.Character, text: k.Character, sub: k.ReadingText()})
+		}
+	}
+	return out
+}
+func kanjiReadingChoices(ids []string) []choiceSrc {
+	out := make([]choiceSrc, 0, len(ids))
+	for _, id := range ids {
+		if k, ok := kanjiByID[id]; ok && k.ReadingText() != "" {
+			out = append(out, choiceSrc{id: k.Character, text: k.ReadingText()})
+		}
+	}
+	return out
+}
+func grammarMeaningChoices(ids []string) []choiceSrc {
+	out := make([]choiceSrc, 0, len(ids))
+	for _, id := range ids {
+		if g, ok := grammarByID[id]; ok && g.Meaning != "" {
+			out = append(out, choiceSrc{id: g.ID, text: g.Meaning})
+		}
+	}
+	return out
+}
+func grammarPatternChoices(ids []string) []choiceSrc {
+	out := make([]choiceSrc, 0, len(ids))
+	for _, id := range ids {
+		if g, ok := grammarByID[id]; ok {
+			out = append(out, choiceSrc{id: g.ID, text: g.Pattern, sub: g.Romaji})
+		}
+	}
+	return out
+}
 
-	// Pad with cross-level distractors if needed
-	if len(distractors) < 3 {
-		for _, w := range vocabulary {
-			if w.ID == correct.ID {
-				continue
-			}
-			d := Choice{ID: w.ID, Correct: false}
-			switch field {
-			case "meaning":
-				d.Text = w.Meaning
-			case "kanji":
-				if w.Kanji == "" {
-					continue
-				}
-				d.Text = w.Kanji
-				d.Sub = w.Kana
-			case "kana":
-				d.Text = w.Kana
-			}
-			if d.Text == "" || d.Text == correctChoice.Text {
-				continue
-			}
-			dup := false
-			for _, ex := range distractors {
-				if ex.Text == d.Text {
-					dup = true
-					break
-				}
-			}
-			if !dup {
-				distractors = append(distractors, d)
-			}
+func buildChoices(sess *QuizSession, correct choiceSrc, near, fallback []choiceSrc) []Choice {
+	correctChoice := Choice{ID: correct.id, Text: correct.text, Sub: correct.sub}
+	distractors := make([]Choice, 0, 3)
+	used := map[string]bool{correct.text: true}
+
+	addFrom := func(pool []choiceSrc) {
+		for _, src := range shuffle(pool) {
 			if len(distractors) == 3 {
-				break
+				return
 			}
+			if src.id == correct.id || src.text == "" || used[src.text] {
+				continue
+			}
+			used[src.text] = true
+			distractors = append(distractors, Choice{ID: src.id, Text: src.text, Sub: src.sub})
 		}
+	}
+	addFrom(near)
+	if len(distractors) < 3 {
+		addFrom(fallback)
 	}
 
 	choices := append(distractors, correctChoice)
 	rand.Shuffle(len(choices), func(i, j int) { choices[i], choices[j] = choices[j], choices[i] })
+
+	// Opaque tokens so clients cannot match choice id to the item id.
+	sess.ChoiceKey = map[string]string{}
+	for i := range choices {
+		tok := fmt.Sprintf("c%x", rand.Int63())
+		sess.ChoiceKey[tok] = choices[i].ID
+		choices[i].ID = tok
+	}
 	return choices
 }
 
@@ -573,14 +728,65 @@ func scoreForAnswer(isCorrect bool, streak int) int {
 	return base
 }
 
+func revealFor(sess *QuizSession, id string) (answer, sub, explanation, formation, notes string, ex *Example) {
+	switch sess.Kind {
+	case KindVocab:
+		w := vocabByID[id]
+		answer, sub = w.MeaningText(), w.Reading
+		if sess.Mode == ModeMeaningToKanji || sess.Mode == ModeKanaToKanji {
+			answer, sub = w.Word, w.Reading
+		}
+		return answer, sub, "", "", "", w.Example
+	case KindKanji:
+		k := kanjiByID[id]
+		switch sess.Mode {
+		case ModeCharToReading:
+			answer, sub = k.ReadingText(), k.MeaningText()
+		case ModeMeaningToChar:
+			answer, sub = k.Character, k.ReadingText()
+		default:
+			answer, sub = k.MeaningText(), k.ReadingText()
+		}
+		if len(k.Words) > 0 {
+			explanation = "例: " + strings.Join(k.Words, "、")
+		}
+		return answer, sub, explanation, "", "", nil
+	case KindGrammar:
+		g := grammarByID[id]
+		if sess.Mode == ModeMeaningToPattern {
+			answer, sub = g.Pattern, g.Romaji
+		} else {
+			answer, sub = g.Meaning, g.Pattern
+		}
+		return answer, sub, "", g.Formation, g.Notes, g.FirstExample()
+	}
+	return "", "", "", "", "", nil
+}
+
+func missFor(sess *QuizSession, id string) Miss {
+	m := Miss{ID: id, Kind: sess.Kind}
+	switch sess.Kind {
+	case KindVocab:
+		w := vocabByID[id]
+		m.Prompt, m.Answer, m.Reading = w.Word, w.MeaningText(), w.Reading
+	case KindKanji:
+		k := kanjiByID[id]
+		m.Prompt, m.Answer, m.Reading = k.Character, k.MeaningText(), k.ReadingText()
+	case KindGrammar:
+		g := grammarByID[id]
+		m.Prompt, m.Answer = g.Pattern, g.Meaning
+	}
+	return m
+}
+
 // ─────────────────────────────────────────────
-//  HTTP Handlers
+//  HTTP
 // ─────────────────────────────────────────────
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
@@ -590,34 +796,32 @@ func writeError(w http.ResponseWriter, status int, code, msg string) {
 	writeJSON(w, status, map[string]string{"error": code, "message": msg})
 }
 
-// GET /api/v1/vocabulary?level=N5&category=動詞
 func handleVocabulary(w http.ResponseWriter, r *http.Request) {
-	level := JLPTLevel(r.URL.Query().Get("level"))
-	category := WordCategory(r.URL.Query().Get("category"))
-
-	words := filterWords(level, category)
-
-	// Sort by level then ID
+	level := normalizeLevel(r.URL.Query().Get("level"))
+	pos := r.URL.Query().Get("category")
+	if pos == "" {
+		pos = r.URL.Query().Get("pos")
+	}
+	words := filterVocab(level, pos)
+	rank := map[JLPTLevel]int{N5: 0, N4: 1, N3: 2, N2: 3, N1: 4}
 	sort.Slice(words, func(i, j int) bool {
 		if words[i].Level != words[j].Level {
-			return words[i].Level < words[j].Level
+			return rank[words[i].Level] < rank[words[j].Level]
 		}
-		return words[i].ID < words[j].ID
+		return words[i].Word < words[j].Word
 	})
-
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"count": len(words),
 		"words": words,
 		"filters": map[string]string{
-			"level":    string(level),
-			"category": string(category),
+			"level": string(level),
+			"pos":   pos,
 		},
 	})
 }
 
-// GET /api/v1/vocabulary/:id
 func handleVocabularyOne(w http.ResponseWriter, r *http.Request, id string) {
-	word, ok := wordsByID(id)
+	word, ok := vocabByID[id]
 	if !ok {
 		writeError(w, http.StatusNotFound, "not_found", "単語が見つかりません: "+id)
 		return
@@ -625,36 +829,31 @@ func handleVocabularyOne(w http.ResponseWriter, r *http.Request, id string) {
 	writeJSON(w, http.StatusOK, word)
 }
 
-// GET /api/v1/vocabulary/random?level=N4&count=10
 func handleRandom(w http.ResponseWriter, r *http.Request) {
-	level := JLPTLevel(r.URL.Query().Get("level"))
-	category := WordCategory(r.URL.Query().Get("category"))
-	countStr := r.URL.Query().Get("count")
-	count := 10
-	if countStr != "" {
-		if n, err := strconv.Atoi(countStr); err == nil && n > 0 && n <= 50 {
-			count = n
-		}
+	level := normalizeLevel(r.URL.Query().Get("level"))
+	pos := r.URL.Query().Get("category")
+	if pos == "" {
+		pos = r.URL.Query().Get("pos")
 	}
-
-	pool := filterWords(level, category)
+	count := 10
+	if n, err := strconv.Atoi(r.URL.Query().Get("count")); err == nil && n > 0 && n <= 50 {
+		count = n
+	}
+	pool := filterVocab(level, pos)
 	if len(pool) == 0 {
 		writeError(w, http.StatusNotFound, "no_words", "該当する単語がありません")
 		return
 	}
-
 	shuffled := shuffle(pool)
 	if count > len(shuffled) {
 		count = len(shuffled)
 	}
-
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"count": count,
 		"words": shuffled[:count],
 	})
 }
 
-// POST /api/v1/quiz/start
 func handleQuizStart(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -662,12 +861,11 @@ func handleQuizStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Level    JLPTLevel    `json:"level"`
-		Category WordCategory `json:"category"`
-		Mode     QuizMode     `json:"mode"`
-		Count    int          `json:"count"`
+		Level JLPTLevel `json:"level"`
+		Kind  QuizKind  `json:"kind"`
+		Mode  QuizMode  `json:"mode"`
+		Count int       `json:"count"`
 	}
-
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "JSONの形式が正しくありません")
 		return
@@ -676,49 +874,95 @@ func handleQuizStart(w http.ResponseWriter, r *http.Request) {
 	if req.Level == "" {
 		req.Level = N5
 	}
+	req.Level = normalizeLevel(string(req.Level))
+	if req.Level == "" {
+		writeError(w, http.StatusBadRequest, "invalid_level", "level は N5〜N1 で指定してください")
+		return
+	}
+	if req.Kind == "" {
+		req.Kind = KindVocab
+	}
+	req.Kind = QuizKind(strings.ToLower(string(req.Kind)))
+	if req.Kind != KindVocab && req.Kind != KindKanji && req.Kind != KindGrammar {
+		writeError(w, http.StatusBadRequest, "invalid_kind", "kind は vocab, kanji, grammar のいずれかです")
+		return
+	}
 	if req.Mode == "" {
-		req.Mode = ModeKanjiToMeaning
+		req.Mode = defaultMode(req.Kind)
+	}
+	if !validMode(req.Kind, req.Mode) {
+		writeError(w, http.StatusBadRequest, "invalid_mode", "この kind では使えない mode です")
+		return
 	}
 	if req.Count <= 0 || req.Count > 50 {
 		req.Count = 10
 	}
 
-	pool := filterWords(req.Level, req.Category)
-	if len(pool) == 0 {
-		writeError(w, http.StatusBadRequest, "no_words", "指定レベル・カテゴリの単語がありません")
-		return
+	var ids []string
+	switch req.Kind {
+	case KindVocab:
+		pool := vocabPoolForMode(req.Level, req.Mode)
+		if len(pool) == 0 {
+			writeError(w, http.StatusBadRequest, "no_items", "指定レベル・種類の問題がありません")
+			return
+		}
+		shuffled := shuffle(pool)
+		if req.Count > len(shuffled) {
+			req.Count = len(shuffled)
+		}
+		for _, w := range shuffled[:req.Count] {
+			ids = append(ids, w.ID)
+		}
+	case KindKanji:
+		pool := filterKanji(req.Level)
+		if len(pool) == 0 {
+			writeError(w, http.StatusBadRequest, "no_items", "指定レベルの漢字がありません")
+			return
+		}
+		shuffled := shuffle(pool)
+		if req.Count > len(shuffled) {
+			req.Count = len(shuffled)
+		}
+		for _, k := range shuffled[:req.Count] {
+			ids = append(ids, k.Character)
+		}
+	case KindGrammar:
+		pool := filterGrammar(req.Level)
+		if len(pool) == 0 {
+			writeError(w, http.StatusBadRequest, "no_items", "指定レベルの文法がありません")
+			return
+		}
+		shuffled := shuffle(pool)
+		if req.Count > len(shuffled) {
+			req.Count = len(shuffled)
+		}
+		for _, g := range shuffled[:req.Count] {
+			ids = append(ids, g.ID)
+		}
 	}
-
-	shuffled := shuffle(pool)
-	if req.Count > len(shuffled) {
-		req.Count = len(shuffled)
-	}
-	words := shuffled[:req.Count]
 
 	sess := &QuizSession{
 		ID:        fmt.Sprintf("sess-%d", time.Now().UnixNano()),
 		Level:     req.Level,
-		Category:  req.Category,
+		Kind:      req.Kind,
 		Mode:      req.Mode,
-		Words:     words,
+		ItemIDs:   ids,
 		Total:     req.Count,
 		StartedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-
 	store.Set(sess)
 
-	firstQ := buildQuestion(sess)
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"session_id":     sess.ID,
 		"level":          sess.Level,
+		"kind":           sess.Kind,
 		"mode":           sess.Mode,
 		"total":          sess.Total,
-		"first_question": firstQ,
+		"first_question": buildQuestion(sess),
 	})
 }
 
-// POST /api/v1/quiz/answer
 func handleQuizAnswer(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -731,36 +975,54 @@ func handleQuizAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess, ok := store.Get(req.SessionID)
+	store.mu.Lock()
+	sess, ok := store.sessions[req.SessionID]
 	if !ok {
+		store.mu.Unlock()
 		writeError(w, http.StatusNotFound, "session_not_found", "セッションが見つかりません")
 		return
 	}
 	if sess.Finished {
+		store.mu.Unlock()
 		writeError(w, http.StatusConflict, "session_finished", "このセッションは既に終了しています")
 		return
 	}
 
-	word, ok := wordsByID(req.WordID)
-	if !ok {
-		writeError(w, http.StatusNotFound, "word_not_found", "単語が見つかりません")
+	itemID := req.ItemID
+	if itemID == "" {
+		itemID = req.WordID
+	}
+	if sess.CurrentIdx >= len(sess.ItemIDs) || sess.ItemIDs[sess.CurrentIdx] != itemID {
+		store.mu.Unlock()
+		writeError(w, http.StatusBadRequest, "item_mismatch", "この問題の item_id が一致しません")
 		return
 	}
 
-	// Determine correctness
 	var isCorrect bool
+	var correctTok string
+	for tok, real := range sess.ChoiceKey {
+		if real == itemID {
+			correctTok = tok
+			break
+		}
+	}
 	if sess.Mode == ModeFlashcard {
 		if req.Correct == nil {
+			store.mu.Unlock()
 			writeError(w, http.StatusBadRequest, "missing_correct", "フラッシュカードモードでは correct フィールドが必要です")
 			return
 		}
 		isCorrect = *req.Correct
 	} else {
-		// Multiple choice: check if chosen ID is the correct word
-		isCorrect = req.ChoiceID == word.ID
+		real, ok := sess.ChoiceKey[req.ChoiceID]
+		if !ok || req.ChoiceID == "" {
+			store.mu.Unlock()
+			writeError(w, http.StatusBadRequest, "invalid_choice", "選択肢が無効です")
+			return
+		}
+		isCorrect = real == itemID
 	}
 
-	// Update session
 	if isCorrect {
 		sess.Correct++
 		sess.StreakCount++
@@ -771,54 +1033,55 @@ func handleQuizAnswer(w http.ResponseWriter, r *http.Request) {
 	} else {
 		sess.Wrong++
 		sess.StreakCount = 0
-		sess.WrongWords = append(sess.WrongWords, word)
+		sess.Misses = append(sess.Misses, missFor(sess, itemID))
 	}
-
 	sess.CurrentIdx++
 	sess.UpdatedAt = time.Now()
-
 	finished := sess.CurrentIdx >= sess.Total
 	sess.Finished = finished
-	store.Set(sess)
 
+	answer, sub, explanation, formation, notes, ex := revealFor(sess, itemID)
 	result := AnswerResult{
 		Correct:         isCorrect,
-		CorrectAnswer:   word.Meaning,
-		CorrectSub:      word.MeaningJa,
-		ExampleJa:       word.ExampleJa,
-		ExampleEn:       word.ExampleEn,
+		CorrectAnswer:   answer,
+		CorrectSub:      sub,
+		Explanation:     explanation,
+		Formation:       formation,
+		Notes:           notes,
 		Score:           sess.Score,
 		CorrectCount:    sess.Correct,
 		WrongCount:      sess.Wrong,
 		Streak:          sess.StreakCount,
 		SessionFinished: finished,
+		CorrectChoiceID: correctTok,
 	}
-
+	if ex != nil {
+		result.ExampleJa = ex.Ja
+		result.ExampleFurigana = ex.Furigana
+		result.ExampleEn = ex.En
+	}
 	if !finished {
 		result.NextQuestion = buildQuestion(sess)
 	}
+	store.mu.Unlock()
 
 	writeJSON(w, http.StatusOK, result)
 }
 
-// GET /api/v1/quiz/:id/summary
 func handleQuizSummary(w http.ResponseWriter, r *http.Request, id string) {
 	sess, ok := store.Get(id)
 	if !ok {
 		writeError(w, http.StatusNotFound, "session_not_found", "セッションが見つかりません")
 		return
 	}
-
 	accuracy := 0.0
 	if sess.Total > 0 {
 		accuracy = float64(sess.Correct) / float64(sess.Total) * 100
 	}
-
-	duration := time.Since(sess.StartedAt).Round(time.Second).String()
-
-	writeJSON(w, http.StatusOK, SessionSummary{
+	summary := SessionSummary{
 		SessionID:  sess.ID,
 		Level:      sess.Level,
+		Kind:       sess.Kind,
 		Mode:       sess.Mode,
 		Total:      sess.Total,
 		Correct:    sess.Correct,
@@ -826,14 +1089,21 @@ func handleQuizSummary(w http.ResponseWriter, r *http.Request, id string) {
 		Score:      sess.Score,
 		Accuracy:   accuracy,
 		BestStreak: sess.BestStreak,
-		Duration:   duration,
+		Duration:   time.Since(sess.StartedAt).Round(time.Second).String(),
 		Grade:      gradeSession(sess),
-		WrongWords: sess.WrongWords,
+		Misses:     sess.Misses,
 		StartedAt:  sess.StartedAt,
-	})
+	}
+	if sess.Kind == KindVocab {
+		for _, m := range sess.Misses {
+			if w, ok := vocabByID[m.ID]; ok {
+				summary.WrongWords = append(summary.WrongWords, w)
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, summary)
 }
 
-// GET /api/v1/quiz/:id — current question
 func handleQuizCurrent(w http.ResponseWriter, r *http.Request, id string) {
 	sess, ok := store.Get(id)
 	if !ok {
@@ -844,82 +1114,90 @@ func handleQuizCurrent(w http.ResponseWriter, r *http.Request, id string) {
 		writeError(w, http.StatusGone, "session_finished", "クイズは終了しています。/summary を呼び出してください")
 		return
 	}
-	q := buildQuestion(sess)
-	writeJSON(w, http.StatusOK, q)
+	writeJSON(w, http.StatusOK, buildQuestion(sess))
 }
 
-// GET /api/v1/levels
-func handleLevels(w http.ResponseWriter, r *http.Request) {
-	type LevelInfo struct {
-		Level      JLPTLevel `json:"level"`
-		WordCount  int       `json:"word_count"`
-		Categories []string  `json:"categories"`
+func countsByLevel() []map[string]interface{} {
+	type c struct{ words, kanji, grammar int }
+	tab := map[JLPTLevel]*c{}
+	for _, lv := range allLevels {
+		tab[lv] = &c{}
 	}
-
-	levels := []JLPTLevel{N5, N4, N3, N2, N1}
-	result := []LevelInfo{}
-
-	for _, lv := range levels {
-		words := filterWords(lv, "")
-		catSet := map[string]bool{}
-		for _, w := range words {
-			catSet[string(w.Category)] = true
+	for _, w := range allVocab {
+		if tab[w.Level] != nil {
+			tab[w.Level].words++
 		}
-		cats := []string{}
-		for c := range catSet {
-			cats = append(cats, c)
+	}
+	for _, k := range allKanji {
+		if tab[k.Level] != nil {
+			tab[k.Level].kanji++
 		}
-		sort.Strings(cats)
-
-		result = append(result, LevelInfo{
-			Level:      lv,
-			WordCount:  len(words),
-			Categories: cats,
+	}
+	for _, g := range allGrammar {
+		if tab[g.Level] != nil {
+			tab[g.Level].grammar++
+		}
+	}
+	out := make([]map[string]interface{}, 0, 5)
+	for _, lv := range allLevels {
+		out = append(out, map[string]interface{}{
+			"level":         lv,
+			"word_count":    tab[lv].words,
+			"kanji_count":   tab[lv].kanji,
+			"grammar_count": tab[lv].grammar,
 		})
 	}
+	return out
+}
 
+func handleLevels(w http.ResponseWriter, r *http.Request) {
+	levels := countsByLevel()
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"levels":      result,
-		"total_words": len(vocabulary),
+		"levels":        levels,
+		"total_words":   len(allVocab),
+		"total_kanji":   len(allKanji),
+		"total_grammar": len(allGrammar),
 	})
 }
 
-// GET /api/v1/stats
 func handleStats(w http.ResponseWriter, r *http.Request) {
-	type LevelCount struct {
-		Level JLPTLevel `json:"level"`
-		Count int       `json:"count"`
-	}
-
-	counts := map[JLPTLevel]int{}
-	for _, w := range vocabulary {
-		counts[w.Level]++
-	}
-
-	lc := []LevelCount{
-		{N5, counts[N5]},
-		{N4, counts[N4]},
-		{N3, counts[N3]},
-		{N2, counts[N2]},
-		{N1, counts[N1]},
-	}
-
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"total_words":     len(vocabulary),
+		"total_words":     len(allVocab),
+		"total_kanji":     len(allKanji),
+		"total_grammar":   len(allGrammar),
 		"active_sessions": store.ActiveCount(),
-		"by_level":        lc,
-		"modes": []string{
-			string(ModeKanjiToMeaning),
-			string(ModeMeaningToKanji),
-			string(ModeKanaToKanji),
-			string(ModeFlashcard),
+		"by_level":        countsByLevel(),
+		"kinds":           []string{string(KindVocab), string(KindKanji), string(KindGrammar)},
+		"modes": map[string][]string{
+			"vocab":   {string(ModeKanjiToMeaning), string(ModeMeaningToKanji), string(ModeKanaToKanji), string(ModeFlashcard)},
+			"kanji":   {string(ModeCharToMeaning), string(ModeMeaningToChar), string(ModeCharToReading)},
+			"grammar": {string(ModePatternToMeaning), string(ModeMeaningToPattern)},
 		},
+		"data_source": "OpenJLPT (https://github.com/evanclan/OpenJLPT), CC BY-SA 4.0",
 	})
 }
 
-// ─────────────────────────────────────────────
-//  Router
-// ─────────────────────────────────────────────
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status":  "ok",
+		"service": "JLPTクイズAPI",
+		"version": "2.0.0",
+		"words":   len(allVocab),
+		"kanji":   len(allKanji),
+		"grammar": len(allGrammar),
+	})
+}
+
+func handleDemo(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" && r.URL.Path != "/index.html" && r.URL.Path != "/demo.html" {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(http.StatusOK)
+	w.Write(demoHTML)
+}
 
 func loggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -932,15 +1210,8 @@ func loggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
 func router() http.Handler {
 	mux := http.NewServeMux()
 
-	// Vocabulary
-	mux.HandleFunc("/api/v1/vocabulary", loggingMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		handleVocabulary(w, r)
-	}))
-
-	mux.HandleFunc("/api/v1/vocabulary/random", loggingMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		handleRandom(w, r)
-	}))
-
+	mux.HandleFunc("/api/v1/vocabulary", loggingMiddleware(handleVocabulary))
+	mux.HandleFunc("/api/v1/vocabulary/random", loggingMiddleware(handleRandom))
 	mux.HandleFunc("/api/v1/vocabulary/", loggingMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimPrefix(r.URL.Path, "/api/v1/vocabulary/")
 		if id == "" {
@@ -950,7 +1221,6 @@ func router() http.Handler {
 		handleVocabularyOne(w, r, id)
 	}))
 
-	// Quiz
 	mux.HandleFunc("/api/v1/quiz/start", loggingMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost && r.Method != http.MethodOptions {
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "POST メソッドのみ対応")
@@ -958,7 +1228,6 @@ func router() http.Handler {
 		}
 		handleQuizStart(w, r)
 	}))
-
 	mux.HandleFunc("/api/v1/quiz/answer", loggingMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost && r.Method != http.MethodOptions {
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "POST メソッドのみ対応")
@@ -966,12 +1235,9 @@ func router() http.Handler {
 		}
 		handleQuizAnswer(w, r)
 	}))
-
 	mux.HandleFunc("/api/v1/quiz/", loggingMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		// /api/v1/quiz/:id or /api/v1/quiz/:id/summary
 		path := strings.TrimPrefix(r.URL.Path, "/api/v1/quiz/")
 		parts := strings.Split(path, "/")
-
 		if len(parts) == 1 && parts[0] != "" {
 			handleQuizCurrent(w, r, parts[0])
 			return
@@ -980,65 +1246,32 @@ func router() http.Handler {
 			handleQuizSummary(w, r, parts[0])
 			return
 		}
-
 		http.NotFound(w, r)
 	}))
 
-	// Meta
 	mux.HandleFunc("/api/v1/levels", loggingMiddleware(handleLevels))
 	mux.HandleFunc("/api/v1/stats", loggingMiddleware(handleStats))
-
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"status":  "ok",
-			"service": "JLPT語彙クイズAPI",
-			"version": "1.0.0",
-			"words":   len(vocabulary),
-		})
-	})
-
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprintln(w, `JLPT語彙クイズAPI v1.0.0
-━━━━━━━━━━━━━━━━━━━━━━
-
-語彙エンドポイント:
-  GET  /api/v1/vocabulary              全単語一覧 (?level=N5&category=動詞)
-  GET  /api/v1/vocabulary/random       ランダム取得 (?level=N4&count=10)
-  GET  /api/v1/vocabulary/:id          単語詳細
-
-クイズエンドポイント:
-  POST /api/v1/quiz/start              クイズ開始
-  POST /api/v1/quiz/answer             回答送信
-  GET  /api/v1/quiz/:id                現在の問題取得
-  GET  /api/v1/quiz/:id/summary        結果サマリー
-
-メタ:
-  GET  /api/v1/levels                  レベル別情報
-  GET  /api/v1/stats                   統計情報
-  GET  /health                         ヘルスチェック
-
-クイズモード:
-  kanji_to_meaning  漢字 → 意味を選ぶ
-  meaning_to_kanji  意味 → 漢字を選ぶ
-  kana_to_kanji     かな → 漢字を選ぶ
-  flashcard         フラッシュカード（自己採点）`)
-	})
+	mux.HandleFunc("/health", handleHealth)
+	mux.HandleFunc("/", handleDemo)
 
 	return mux
 }
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	initVocabulary()
+	loadData()
 
-	port := ":8083"
-	log.Printf("JLPT語彙クイズAPI 起動中: http://localhost%s", port)
-	if err := http.ListenAndServe(port, router()); err != nil {
+	if _, err := fs.Stat(dataFS, "data/vocab/n5.json"); err != nil {
+		log.Fatalf("embedded data check failed: %v", err)
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8083"
+	}
+	addr := "0.0.0.0:" + port
+	log.Printf("JLPTクイズAPI 起動中: http://localhost:%s  (vocab=%d kanji=%d grammar=%d)", port, len(allVocab), len(allKanji), len(allGrammar))
+	if err := http.ListenAndServe(addr, router()); err != nil {
 		log.Fatal(err)
 	}
 }
