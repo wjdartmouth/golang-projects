@@ -1,158 +1,153 @@
-# 📚 JLPT語彙クイズAPI
+# 📚 JLPTクイズAPI
 
-JLPT N5〜N1の語彙データを提供するGoマイクロサービスです。フラッシュカードアプリ・クイズアプリのバックエンドとして使用できます。
+[OpenJLPT](https://github.com/evanclan/OpenJLPT) の N5〜N1 データ（単語・漢字・文法）を埋め込んだ Go クイズサービスです。ブラウザで `http://localhost:8083` を開けば、同じプロセスが API とデモ UI を提供します。
 
-> A zero-dependency Go backend for JLPT vocabulary flashcard and quiz applications. Covers N5–N1 with 4 quiz modes, session tracking, streak scoring, and spaced repetition support.
+> A stdlib-only Go quiz for JLPT N5–N1 vocabulary, kanji, and grammar. Data is adapted from OpenJLPT and embedded in the binary (`go:embed`). Open the server URL to play; no separate `file://` demo is required.
 
 ---
 
 ## 特徴 / Features
 
-- ✅ **N5〜N1全レベル対応** — 漢字・かな・ローマ字・意味・用例
-- ✅ **4つのクイズモード** — 漢字→意味 / 意味→漢字 / かな→漢字 / フラッシュカード
-- ✅ **セッション管理** — インメモリのsync.RWMutex保護セッションストア
-- ✅ **スコアリング** — 連続正解ボーナス（3連続×2倍、5連続×3倍）
-- ✅ **復習リスト** — 間違えた単語を自動収集
-- ✅ **インタラクティブデモ** — `demo.html` でブラウザ上で即プレイ可能
-- ✅ **ゼロ外部依存** — 標準ライブラリのみ
+- ✅ **OpenJLPT データ** — 単語 約 7,811 / 漢字 2,383 / 文法 526（N5〜N1）
+- ✅ **3つの種類** — 単語（vocab）・漢字（kanji）・文法（grammar）
+- ✅ **複数モード** — 下記参照。単語の既存4モードは互換のまま
+- ✅ **セッション採点** — インメモリ、連続正解ボーナス（3連続×2、5連続×3）
+- ✅ **デモ UI** — サーバーが `/` で `demo.html` を配信（Docker でも同じ URL）
+- ✅ **ゼロ外部依存** — 標準ライブラリのみ（`go:embed`, `net/http`, `encoding/json`）
 
 ---
 
-## クイックスタート
+## クイックスタート / Quick Start
 
 ```bash
 git clone https://github.com/wjdartmouth/golang-projects.git
 cd golang-projects/jlpt-quiz-api
 go run .
-# → http://localhost:8083
-
-# デモをブラウザで開く
-open demo.html
+# ブラウザで http://localhost:8083 を開く
 ```
 
 このサービスはポートフォリオ用モノレポ `golang-projects` 内の `jlpt-quiz-api/` にあります。モジュールパスは `github.com/wjdartmouth/golang-projects/jlpt-quiz-api` です。
 
+### 環境変数
+
+| 変数 | デフォルト | 説明 |
+|------|-----------|------|
+| `PORT` | `8083` | リッスンポート。`0.0.0.0` にバインドします |
+
+```bash
+PORT=9090 go run .
+```
+
+### Docker
+
+```bash
+docker build -t jlpt-quiz-api .
+docker run --rm -p 8083:8083 jlpt-quiz-api
+# http://localhost:8083
+```
+
+リポジトリルートからなら `docker compose up jlpt-quiz-api` でも起動できます。イメージはマルチステージ・`CGO_ENABLED=0` で、データはバイナリに埋め込みます。
+
 ---
 
-## APIエンドポイント
+## クイズの種類とモード / Kinds and modes
 
-### 語彙
+`POST /api/v1/quiz/start` に `kind` を渡せます。省略時は `vocab`（後方互換）。
 
-| メソッド | パス | 説明 |
-|--------|-----|------|
-| GET | `/api/v1/vocabulary` | 全単語一覧 (?level=N5&category=動詞) |
-| GET | `/api/v1/vocabulary/random` | ランダム取得 (?level=N4&count=10) |
-| GET | `/api/v1/vocabulary/:id` | 単語詳細 |
+| kind | mode | 説明 |
+|------|------|------|
+| `vocab` | `kanji_to_meaning` | 単語を見て意味を選ぶ（デフォルト） |
+| `vocab` | `meaning_to_kanji` | 意味を見て単語を選ぶ |
+| `vocab` | `kana_to_kanji` | 読みを見て単語を選ぶ |
+| `vocab` | `flashcard` | 裏面を見て自己採点（`correct` を送信） |
+| `kanji` | `character_to_meaning` | 漢字 → 意味（漢字のデフォルト） |
+| `kanji` | `meaning_to_character` | 意味 → 漢字 |
+| `kanji` | `character_to_reading` | 漢字 → 音読み・訓読み |
+| `grammar` | `pattern_to_meaning` | 文型 → 意味（文法のデフォルト） |
+| `grammar` | `meaning_to_pattern` | 意味 → 文型 |
+
+文法の回答後レスポンスには `formation`、`notes`、例文（`example_ja` / `example_furigana` / `example_en`）が含まれます。選択肢の JSON に正解フラグは含まれません。採点はサーバー側で行います。
+
+---
+
+## API
 
 ### クイズ
 
 | メソッド | パス | 説明 |
-|--------|-----|------|
-| POST | `/api/v1/quiz/start` | クイズ開始・セッション生成 |
+|--------|------|------|
+| POST | `/api/v1/quiz/start` | クイズ開始 |
 | POST | `/api/v1/quiz/answer` | 回答送信 |
-| GET | `/api/v1/quiz/:id` | 現在の問題取得 |
-| GET | `/api/v1/quiz/:id/summary` | 結果サマリー取得 |
+| GET | `/api/v1/quiz/:id` | 現在の問題 |
+| GET | `/api/v1/quiz/:id/summary` | 結果サマリー |
 
-### メタ
+```bash
+# 単語クイズ
+curl -s -X POST http://localhost:8083/api/v1/quiz/start \
+  -H "Content-Type: application/json" \
+  -d '{"level":"N5","kind":"vocab","mode":"kanji_to_meaning","count":5}'
+
+# 漢字クイズ
+curl -s -X POST http://localhost:8083/api/v1/quiz/start \
+  -H "Content-Type: application/json" \
+  -d '{"level":"N4","kind":"kanji","mode":"character_to_reading","count":5}'
+
+# 文法クイズ
+curl -s -X POST http://localhost:8083/api/v1/quiz/start \
+  -H "Content-Type: application/json" \
+  -d '{"level":"N5","kind":"grammar","mode":"pattern_to_meaning","count":5}'
+```
+
+回答:
+
+```bash
+curl -s -X POST http://localhost:8083/api/v1/quiz/answer \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":"sess-…","item_id":"…","choice_id":"c…"}'
+```
+
+フラッシュカードでは `choice_id` の代わりに `"correct": true` または `false` を送ります。
+
+### データ・メタ
 
 | メソッド | パス | 説明 |
-|--------|-----|------|
-| GET | `/api/v1/levels` | レベル別単語数・カテゴリ |
-| GET | `/api/v1/stats` | 統計情報 |
+|--------|------|------|
+| GET | `/` | デモ UI（`demo.html`） |
+| GET | `/health` | ヘルスチェック（件数つき） |
+| GET | `/api/v1/levels` | レベル別の単語・漢字・文法件数 |
+| GET | `/api/v1/stats` | 合計件数・モード一覧 |
+| GET | `/api/v1/vocabulary` | 単語一覧（`?level=N5`、`?pos=` / `?category=`） |
+| GET | `/api/v1/vocabulary/random` | ランダム単語（`?count=` 最大 50） |
+| GET | `/api/v1/vocabulary/:id` | 単語詳細 |
 
 ---
 
-## クイズの使い方 / Quiz Flow
+## データソース / Data source
 
-### Step 1: クイズ開始
+問題データは [OpenJLPT](https://github.com/evanclan/OpenJLPT)（**CC BY-SA 4.0**）をクイズ用に縮小したコピーです。
+
+| レベル | 単語 | 漢字 | 文法 |
+|--------|------|------|------|
+| N5 | 674 | 84 | 81 |
+| N4 | 630 | 169 | 98 |
+| N3 | 1,659 | 387 | 101 |
+| N2 | 1,778 | 398 | 123 |
+| N1 | 3,070 | 1,345 | 123 |
+| **合計** | **7,811** | **2,383** | **526** |
+
+件数は OpenJLPT 上流と一致します。JLPT 団体公式の出題範囲ではなく、Jonathan Waller 氏のコミュニティリスト等に基づく非公式の目安です。
+
+縮小後のデータは `data/{vocab,kanji,grammar}/n5.json` 〜 `n1.json` にあり、起動時に `go:embed` で読み込みます。ファイルが欠けている、または空・不正な JSON の場合はサーバーは起動に失敗します。上流から再生成するには:
+
 ```bash
-curl -X POST http://localhost:8083/api/v1/quiz/start \
-  -H "Content-Type: application/json" \
-  -d '{
-    "level": "N4",
-    "mode": "kanji_to_meaning",
-    "count": 10
-  }'
+./scripts/refresh-openjlpt.sh
 ```
 
-**レスポンス:**
-```json
-{
-  "session_id": "sess-1706789012345678900",
-  "level": "N4",
-  "mode": "kanji_to_meaning",
-  "total": 10,
-  "first_question": {
-    "session_id": "sess-...",
-    "question_num": 1,
-    "total": 10,
-    "word_id": "n4-003",
-    "prompt": "準備",
-    "prompt_sub": "じゅんび",
-    "choices": [
-      { "id": "n4-003", "text": "preparation", "sub": "用意・支度", "correct": true },
-      { "id": "n4-017", "text": "busy", "sub": "多忙な", "correct": false },
-      { "id": "n4-001", "text": "experience", "sub": "体験・実経験", "correct": false },
-      { "id": "n4-010", "text": "departure", "sub": "出発・旅立ち", "correct": false }
-    ]
-  }
-}
-```
+詳細なクレジットは [`data/NOTICE.md`](./data/NOTICE.md) を見てください。アプリのフッターにも OpenJLPT へのリンクがあります。
 
-### Step 2: 回答送信
-```bash
-curl -X POST http://localhost:8083/api/v1/quiz/answer \
-  -H "Content-Type: application/json" \
-  -d '{
-    "session_id": "sess-1706789012345678900",
-    "word_id": "n4-003",
-    "choice_id": "n4-003"
-  }'
-```
+> Contains data from [OpenJLPT](https://github.com/evanclan/OpenJLPT) (CC BY-SA 4.0), which uses JMdict and KANJIDIC2 (EDRDG), Jonathan Waller's JLPT lists, and Tatoeba.
 
-**レスポンス:**
-```json
-{
-  "correct": true,
-  "correct_answer": "preparation",
-  "score": 10,
-  "correct_count": 1,
-  "wrong_count": 0,
-  "streak": 1,
-  "session_finished": false,
-  "next_question": { ... }
-}
-```
-
-### Step 3: 結果取得
-```bash
-curl http://localhost:8083/api/v1/quiz/sess-xxx/summary
-```
-
-```json
-{
-  "total": 10,
-  "correct": 8,
-  "wrong": 2,
-  "score": 100,
-  "accuracy_pct": 80.0,
-  "best_streak": 5,
-  "grade": "A（良い）",
-  "duration": "2m30s",
-  "wrong_words": [...]
-}
-```
-
----
-
-## クイズモード / Quiz Modes
-
-| モード | 説明 | プロンプト | 選択肢 |
-|--------|------|----------|------|
-| `kanji_to_meaning` | 漢字→意味 | 漢字・かな | 意味 |
-| `meaning_to_kanji` | 意味→漢字 | 英語意味 | 漢字 |
-| `kana_to_kanji` | かな→漢字 | かな・ローマ字 | 漢字 |
-| `flashcard` | フラッシュカード | 漢字・かな | 自己採点 |
+**ライセンス:** アプリケーションコードは MIT（リポジトリルートの [LICENSE](../LICENSE)）。`data/` 配下の JSON と NOTICE は **CC BY-SA 4.0** のままです。派生データセットも同じライセンスで公開する必要があります。
 
 ---
 
@@ -161,21 +156,11 @@ curl http://localhost:8083/api/v1/quiz/sess-xxx/summary
 | 状況 | 点数 |
 |------|------|
 | 正解 | +10 |
-| 3連続正解 | +20（×2ボーナス） |
-| 5連続正解 | +30（×3ボーナス） |
-| 不正解 | ±0（連続リセット） |
+| 3連続正解 | +20（×2） |
+| 5連続正解 | +30（×3） |
+| 不正解 | 0（連続リセット） |
 
----
-
-## 成績判定 / Grading
-
-| 正解率 | グレード |
-|--------|---------|
-| 95%以上 | S（優秀） |
-| 80%以上 | A（良い） |
-| 65%以上 | B（普通） |
-| 50%以上 | C（要復習） |
-| 50%未満 | D（要勉強） |
+成績: S（95%） / A（80%） / B（65%） / C（50%） / D（50%未満）。セッションはプロセス内のメモリにだけ保存されます。
 
 ---
 
@@ -183,59 +168,17 @@ curl http://localhost:8083/api/v1/quiz/sess-xxx/summary
 
 ```
 jlpt-quiz-api/
-├── main.go       # HTTPサーバー・クイズエンジン・語彙DB
-├── demo.html     # スタンドアロン インタラクティブデモ
-├── go.mod        # モジュール（外部依存なし）
-└── Dockerfile    # scratch ベース ~5MB
+├── main.go                 # HTTP サーバー・クイズエンジン
+├── demo.html               # 単一ファイルのデモ UI（/ で配信）
+├── data/
+│   ├── NOTICE.md           # CC BY-SA 帰属
+│   ├── vocab/n5.json … n1.json
+│   ├── kanji/n5.json … n1.json
+│   └── grammar/n5.json … n1.json
+├── scripts/refresh-openjlpt.sh
+├── go.mod
+├── Dockerfile
+└── README.md
 ```
 
-### データ構造
-
-```go
-// セッションストア — goroutine-safe
-type SessionStore struct {
-    mu       sync.RWMutex
-    sessions map[string]*QuizSession
-}
-
-// クイズセッション
-type QuizSession struct {
-    Words       []Word    // シャッフル済み問題プール
-    CurrentIdx  int       // 現在の問題インデックス
-    StreakCount int       // 連続正解数
-    WrongWords  []Word    // 復習リスト
-}
-```
-
-### スコアリングロジック
-
-```go
-func scoreForAnswer(isCorrect bool, streak int) int {
-    if !isCorrect { return 0 }
-    base := 10
-    if streak >= 5 { return base * 3 }  // 🔥 ×3
-    if streak >= 3 { return base * 2 }  // 🔥 ×2
-    return base
-}
-```
-
----
-
-## 語彙データ / Vocabulary Data
-
-| レベル | 単語数 | カテゴリ数 |
-|--------|--------|----------|
-| N5 | 34語 | 6 |
-| N4 | 20語 | 6 |
-| N3 | 20語 | 5 |
-| N2 | 15語 | 5 |
-| N1 | 15語 | 4 |
-| **合計** | **104語** | **14** |
-
-カテゴリ: 時間・日付 / 数・量 / 家族・人 / 体・健康 / 食べ物・飲み物 / 交通・移動 / 仕事・学校 / 自然・天気 / 家・生活 / 感情・状態 / 動詞 / 形容詞 / 社会・文化 / 抽象・概念
-
----
-
-## ライセンス / License
-
-MIT License © 2026 — see [LICENSE](../LICENSE)
+このサービスはポートフォリオ用の自己完結したクイズです。高可用な本番プラットフォームではありません。
