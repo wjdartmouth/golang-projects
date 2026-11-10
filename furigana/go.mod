@@ -1,4 +1,4 @@
-module github.com/yourname/furigana
+module github.com/wjdartmouth/golang-projects/furigana
 
 go 1.21
 

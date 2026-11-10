@@ -1,4 +1,4 @@
-module github.com/yourname/price-tracker
+module github.com/wjdartmouth/golang-projects/price-tracker
 
 go 1.21
 

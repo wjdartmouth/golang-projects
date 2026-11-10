@@ -1,0 +1,39 @@
+services:
+  holidays-api:
+    build: ./holidays-api
+    ports:
+      - "8080:8080"
+
+  invoice-gen:
+    build: ./invoice-gen
+    ports:
+      - "8081:8081"
+
+  postal-api:
+    build: ./postal-api
+    ports:
+      - "8082:8082"
+
+  jlpt-quiz-api:
+    build: ./jlpt-quiz-api
+    ports:
+      - "8083:8083"
+
+  kintai-api:
+    build: ./kintai-api
+    ports:
+      - "8084:8084"
+    environment:
+      TZ: Asia/Tokyo
+
+  price-tracker:
+    build: ./price-tracker
+    ports:
+      - "8085:8085"
+    environment:
+      TZ: Asia/Tokyo
+
+  furigana:
+    build: ./furigana
+    ports:
+      - "8086:8086"
