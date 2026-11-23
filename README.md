@@ -62,7 +62,7 @@ See [postal-api/README.md](./postal-api/README.md) for endpoints and CSV setup. 
 
 ### 04 — JLPT 語彙クイズ (Vocabulary Quiz API)
 
-A quiz engine for JLPT N5–N1 with 104 vocabulary items across 14 categories, four modes (kanji→meaning, meaning→kanji, kana→kanji, flashcard), streak scoring, and a wrong-word review list. `demo.html` can be opened in a browser without the server.
+A quiz engine for JLPT N5–N1 with **7,811 vocabulary items, 2,383 kanji, and 526 grammar points** adapted from [OpenJLPT](https://github.com/evanclan/OpenJLPT). Supports vocabulary, kanji, and grammar quiz modes with server-side scoring and an embedded browser demo. **Start the Go server and open `http://localhost:8083`**; opening `demo.html` directly as a `file://` page is not the supported workflow. The adapted dataset is **CC BY-SA 4.0**, separately from the MIT-licensed application code; see [data attribution](./jlpt-quiz-api/data/NOTICE.md).
 
 See [jlpt-quiz-api/README.md](./jlpt-quiz-api/README.md) for the quiz flow. Run with `cd jlpt-quiz-api && go run .` (port 8083).
 
@@ -184,6 +184,16 @@ go run . serve
 ```
 
 `price-tracker` and `furigana` pull `golang.org/x/net` (and `x/text` for the tracker). Run `go mod tidy` in those folders if your local module cache is empty.
+
+### Verify all Go modules locally (no GitHub Actions)
+
+Requires Go 1.21 or newer and Bash. From the repository root:
+
+```bash
+bash scripts/verify-go.sh
+```
+
+The script runs `go build ./...`, `go test ./...`, and `go vet ./...` in each of the seven independent modules, reports individual failures, and returns a nonzero exit code if any check fails. It does **not** launch services, validate Docker images, or imply test coverage where no tests exist. Run it before opening or merging a pull request.
 
 ### Health checks
 
